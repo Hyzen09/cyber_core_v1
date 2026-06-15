@@ -1,6 +1,7 @@
 import os
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel  # <-- NEW: Needed for defining the Chat Request
 from pdf2image import convert_from_bytes
 import pytesseract
 from supabase import create_client, Client
@@ -25,10 +26,23 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Initialize Local Models
 embeddings_model = OllamaEmbeddings(model="nomic-embed-text", base_url="http://127.0.0.1:11434")
 
-# NEW: Initialize Qwen to act as the Markdown Analyst
+# Initialize Qwen to act as the Markdown Analyst and Chat Assistant
 chat_model = ChatOllama(model="qwen2.5-coder:7b", base_url="http://127.0.0.1:11434", temperature=0.2)
 
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, length_function=len)
+
+# ==========================================
+# DATA MODELS
+# ==========================================
+
+class ChatRequest(BaseModel):
+    user_id: str
+    session_id: str
+    message: str
+
+# ==========================================
+# ENDPOINT 1: DOCUMENT INGESTION
+# ==========================================
 
 @app.post("/api/upload-pdf")
 async def upload_pdf(
@@ -90,6 +104,106 @@ async def upload_pdf(
     except Exception as e:
         print(f"Error processing PDF: {e}")
         raise HTTPException(status_code=500, detail="Failed to process and embed PDF")
+
+# ==========================================
+# ENDPOINT 2: RAG CHAT WITH MEMORY
+# ==========================================
+
+@app.post("/api/chat")
+async def chat_with_memory(request: ChatRequest):
+    try:
+        # 1. FETCH EPISODIC MEMORY (Get the last 6 messages)
+        history_response = supabase.table("messages") \
+            .select("role, content") \
+            .eq("chat_id", request.session_id) \
+            .order("created_at", desc=False) \
+            .limit(6) \
+            .execute()
+        
+        chat_history = history_response.data
+        
+        # Format history into a readable string for the prompt
+        formatted_history = "\n".join([f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history]) if chat_history else "No previous conversation."
+
+        # 2. QUERY REFORMULATION
+        standalone_query = request.message
+        if chat_history:
+            reformulation_prompt = f"""Given the following conversation history and the user's new question, rephrase the question to be a standalone query that contains all necessary context. Do not answer the question, just reformulate it.
+            
+            Chat History:
+            {formatted_history}
+            
+            New Question: {request.message}
+            Standalone Question:"""
+            
+            reformulation_response = chat_model.invoke(reformulation_prompt)
+            standalone_query = reformulation_response.content.strip()
+            print(f"Reformulated query: {standalone_query}")
+
+        # 3. SEMANTIC SEARCH (RAG)
+        query_vector = embeddings_model.embed_query(standalone_query)
+
+        # Call the Supabase RPC function to find matching document chunks
+        matching_docs = None
+        try:
+            matching_docs = supabase.rpc(
+                'match_document_chunks', 
+                {
+                    'query_embedding': query_vector, 
+                    'match_threshold': 0.5, # Adjust based on nomic-embed-text sensitivity
+                    'match_count': 4, 
+                    'p_user_id': request.user_id
+                }
+            ).execute()
+        except Exception as rpc_error:
+            print(f"RPC match_document_chunks failed (possibly overloaded function): {rpc_error}")
+
+        # Combine retrieved chunks into a single context string
+        context_texts = [doc['content'] for doc in matching_docs.data] if matching_docs and hasattr(matching_docs, 'data') and matching_docs.data else []
+        retrieved_context = "\n\n---\n\n".join(context_texts) if context_texts else "No relevant documents found."
+
+        # 4. GENERATE THE FINAL ANSWER
+        final_prompt = f"""You are a helpful AI assistant. Use the following retrieved document context to answer the user's question. 
+        If you don't know the answer based on the context, just say so. Consider the conversation history if relevant.
+
+        Retrieved Document Context:
+        {retrieved_context}
+
+        Conversation History:
+        {formatted_history}
+
+        User Question: {request.message}
+        Answer:"""
+
+        final_response = chat_model.invoke(final_prompt)
+        ai_answer = final_response.content
+
+        # 5. SAVE TO EPISODIC MEMORY
+        # Save the User's message
+        supabase.table("messages").insert({
+            "chat_id": request.session_id,
+            "role": "user",
+            "content": request.message
+        }).execute()
+
+        # Save the AI's response
+        supabase.table("messages").insert({
+            "chat_id": request.session_id,
+            "role": "assistant",
+            "content": ai_answer
+        }).execute()
+
+        return {
+            "status": "success",
+            "answer": ai_answer,
+            "retrieved_documents": len(context_texts)
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Error during chat: {e}")
+        raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
