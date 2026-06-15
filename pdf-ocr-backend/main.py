@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel  # <-- NEW: Needed for defining the Chat Request
+from pydantic import BaseModel
 from pdf2image import convert_from_bytes
 import pytesseract
 from supabase import create_client, Client
@@ -39,6 +39,7 @@ class ChatRequest(BaseModel):
     user_id: str
     session_id: str
     message: str
+    filename: str | None = None  # Added to track which document the user is chatting about
 
 # ==========================================
 # ENDPOINT 1: DOCUMENT INGESTION
@@ -160,14 +161,31 @@ async def chat_with_memory(request: ChatRequest):
 
         # Combine retrieved chunks into a single context string
         context_texts = [doc['content'] for doc in matching_docs.data] if matching_docs and hasattr(matching_docs, 'data') and matching_docs.data else []
-        retrieved_context = "\n\n---\n\n".join(context_texts) if context_texts else "No relevant documents found."
+        retrieved_context = "\n\n---\n\n".join(context_texts) if context_texts else ""
+
+        # ==========================================
+        # NEW: FETCH DOCUMENT SUMMARY
+        # ==========================================
+        document_summary = ""
+        if request.filename:
+            summary_response = supabase.table("document_summaries") \
+                .select("markdown_content") \
+                .eq("user_id", request.user_id) \
+                .eq("filename", request.filename) \
+                .execute()
+            
+            if summary_response.data:
+                document_summary = f"--- Document Summary for {request.filename} ---\n{summary_response.data[0]['markdown_content']}\n\n"
+
+        # Combine the summary and the specific RAG chunks
+        final_context = document_summary + "--- Specific Document Chunks ---\n" + (retrieved_context if retrieved_context else "No specific chunks matched.")
 
         # 4. GENERATE THE FINAL ANSWER
         final_prompt = f"""You are a helpful AI assistant. Use the following retrieved document context to answer the user's question. 
         If you don't know the answer based on the context, just say so. Consider the conversation history if relevant.
 
         Retrieved Document Context:
-        {retrieved_context}
+        {final_context}
 
         Conversation History:
         {formatted_history}
