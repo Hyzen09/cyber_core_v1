@@ -18,11 +18,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Supabase
-SUPABASE_URL = "https://zuswmcqwudybxbpxcoaw.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1c3dtY3F3dWR5YnhicHhjb2F3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTI0NTg4NCwiZXhwIjoyMDk2ODIxODg0fQ.L9GcPISzuZa8M8_5spid9XTu6dJjNEbcFdWNb7FYDwc" 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+import os
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv(".env.local")
+
+# Initialize Supabase
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY in .env.local")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Initialize Local Models
 embeddings_model = OllamaEmbeddings(model="nomic-embed-text", base_url="http://127.0.0.1:11434")
 
