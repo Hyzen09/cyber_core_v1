@@ -72,7 +72,8 @@ async def generate_chat_response(request: ChatRequest):
     - Talk like a human expert. Do not copy-paste chunks verbatim. Synthesize facts into a smooth, natural flow.
     - Structure your response cleanly using markdown (bolding, clear lists, short paragraphs).
     - If the retrieved context doesn't contain the answer, gracefully let the user know without guessing.
-
+    - Do not add text "Suggested Prompts:" in your response 
+    
     SUGGESTION REQUIREMENT (CRITICAL):
     You must generate 2 to 3 suggested prompts that the USER can click to ask YOU next, based on the document's content.
     

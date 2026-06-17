@@ -1,4 +1,6 @@
+# pyrefly: ignore [missing-import]
 from langchain_ollama import OllamaEmbeddings, ChatOllama
+# pyrefly: ignore [missing-import]
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from app.config import OLLAMA_BASE_URL
 
