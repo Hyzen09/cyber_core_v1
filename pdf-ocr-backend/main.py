@@ -1,4 +1,5 @@
 import os
+import uuid
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -7,6 +8,10 @@ import pytesseract
 from supabase import create_client, Client
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_ollama import OllamaEmbeddings, ChatOllama
+from dotenv import load_dotenv
+
+# Import Qdrant
+from qdrant_client import QdrantClient, models
 
 app = FastAPI()
 
@@ -18,13 +23,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-import os
-from dotenv import load_dotenv
-
 # Load environment variables
 load_dotenv(".env.local")
 
-# Initialize Supabase
+# ==========================================
+# 1. INITIALIZE SUPABASE
+# ==========================================
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
@@ -32,28 +36,43 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY in .env.local")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-# Initialize Local Models
+
+# ==========================================
+# 2. INITIALIZE QDRANT
+# ==========================================
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
+
+qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+
+collection_names = ["document_chunks", "document_summaries"]
+for name in collection_names:
+    if not qdrant.collection_exists(name):
+        qdrant.create_collection(
+            collection_name=name,
+            vectors_config=models.VectorParams(size=768, distance=models.Distance.COSINE)
+        )
+        print(f"Created Qdrant Collection: {name}")
+
+# ==========================================
+# 3. INITIALIZE AI MODELS
+# ==========================================
 embeddings_model = OllamaEmbeddings(model="nomic-embed-text", base_url="http://127.0.0.1:11434")
-
-# Initialize Qwen to act as the Markdown Analyst and Chat Assistant
-chat_model = ChatOllama(model="qwen2.5-coder:7b", base_url="http://127.0.0.1:11434", temperature=0.2)
-
+chat_model = ChatOllama(model="qwen2.5-coder:7b", base_url="http://127.0.0.1:11434", temperature=0.4) # Slightly increased temperature for more natural flow
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, length_function=len)
 
 # ==========================================
 # DATA MODELS
 # ==========================================
-
 class ChatRequest(BaseModel):
     user_id: str
     session_id: str
     message: str
-    filename: str | None = None  # Added to track which document the user is chatting about
+    filename: str | None = None  
 
 # ==========================================
 # ENDPOINT 1: DOCUMENT INGESTION
 # ==========================================
-
 @app.post("/api/upload-pdf")
 async def upload_pdf(
     file: UploadFile = File(...),
@@ -71,9 +90,8 @@ async def upload_pdf(
         for image in images:
             full_text += pytesseract.image_to_string(image) + "\n"
 
-        # 2. GENERATE MARKDOWN SUMMARY WITH QWEN
+        # 2. GENERATE MARKDOWN SUMMARY
         print(f"Asking Qwen to generate Markdown for {file.filename}...")
-        # We limit to the first 25,000 characters to prevent overloading the context window
         prompt = f"""You are a master data analyst. Read the following document text and extract all the detailed and key information. 
         Format your response strictly as a comprehensive Markdown (.md) document. Include headers, bullet points, and key metrics.
         
@@ -83,46 +101,61 @@ async def upload_pdf(
         summary_response = chat_model.invoke(prompt)
         markdown_content = summary_response.content
 
-        # 3. Save the Markdown File to Supabase
-        supabase.table("document_summaries").insert({
-            "user_id": user_id,
-            "filename": file.filename,
-            "markdown_content": markdown_content
-        }).execute()
-        print("Markdown saved to database!")
+        # 3. Save Summary to Qdrant
+        summary_vector = embeddings_model.embed_query(markdown_content)
+        qdrant.upsert(
+            collection_name="document_summaries",
+            points=[
+                models.PointStruct(
+                    id=str(uuid.uuid4()),
+                    vector=summary_vector,
+                    payload={
+                        "user_id": user_id,
+                        "filename": file.filename,
+                        "markdown_content": markdown_content
+                    }
+                )
+            ]
+        )
 
-        # 4. Standard Vector Chunking (Kept for hybrid search later if needed)
+        # 4. Standard Vector Chunking
         chunks = text_splitter.split_text(full_text)
-        records_inserted = 0
+        points = []
         for chunk in chunks:
             vector = embeddings_model.embed_query(chunk)
-            supabase.table("document_chunks").insert({
-                "user_id": user_id,
-                "filename": file.filename,
-                "content": chunk,
-                "embedding": vector
-            }).execute()
-            records_inserted += 1
+            points.append(
+                models.PointStruct(
+                    id=str(uuid.uuid4()),
+                    vector=vector,
+                    payload={
+                        "user_id": user_id,
+                        "filename": file.filename,
+                        "content": chunk
+                    }
+                )
+            )
+            
+        qdrant.upsert(collection_name="document_chunks", points=points)
 
         return {
             "filename": file.filename,
             "status": "success",
-            "chunks_stored": records_inserted,
+            "chunks_stored": len(points),
             "markdown_generated": True
         }
         
     except Exception as e:
-        print(f"Error processing PDF: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail="Failed to process and embed PDF")
 
 # ==========================================
 # ENDPOINT 2: RAG CHAT WITH MEMORY
 # ==========================================
-
 @app.post("/api/chat")
 async def chat_with_memory(request: ChatRequest):
     try:
-        # 1. FETCH EPISODIC MEMORY (Get the last 6 messages)
+        # 1. FETCH EPISODIC MEMORY FROM SUPABASE
         history_response = supabase.table("messages") \
             .select("role, content") \
             .eq("chat_id", request.session_id) \
@@ -131,8 +164,6 @@ async def chat_with_memory(request: ChatRequest):
             .execute()
         
         chat_history = history_response.data
-        
-        # Format history into a readable string for the prompt
         formatted_history = "\n".join([f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history]) if chat_history else "No previous conversation."
 
         # 2. QUERY REFORMULATION
@@ -148,50 +179,60 @@ async def chat_with_memory(request: ChatRequest):
             
             reformulation_response = chat_model.invoke(reformulation_prompt)
             standalone_query = reformulation_response.content.strip()
-            print(f"Reformulated query: {standalone_query}")
 
-        # 3. SEMANTIC SEARCH (RAG)
+        # 3. SEMANTIC SEARCH WITH QDRANT
         query_vector = embeddings_model.embed_query(standalone_query)
 
-        # Call the Supabase RPC function to find matching document chunks
-        matching_docs = None
-        try:
-            matching_docs = supabase.rpc(
-                'match_document_chunks', 
-                {
-                    'query_embedding': query_vector, 
-                    'match_threshold': 0.5, # Adjust based on nomic-embed-text sensitivity
-                    'match_count': 4, 
-                    'p_user_id': request.user_id
-                }
-            ).execute()
-        except Exception as rpc_error:
-            print(f"RPC match_document_chunks failed (possibly overloaded function): {rpc_error}")
+        search_result = qdrant.query_points(
+            collection_name="document_chunks",
+            query=query_vector,
+            query_filter=models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="user_id",
+                        match=models.MatchValue(value=request.user_id)
+                    )
+                ]
+            ),
+            limit=4,
+            score_threshold=0.4
+        )
 
-        # Combine retrieved chunks into a single context string
-        context_texts = [doc['content'] for doc in matching_docs.data] if matching_docs and hasattr(matching_docs, 'data') and matching_docs.data else []
+        context_texts = [hit.payload['content'] for hit in search_result.points]
         retrieved_context = "\n\n---\n\n".join(context_texts) if context_texts else ""
 
-        # ==========================================
-        # NEW: FETCH DOCUMENT SUMMARY
-        # ==========================================
+        # 4. FETCH DOCUMENT SUMMARY FROM QDRANT
         document_summary = ""
         if request.filename:
-            summary_response = supabase.table("document_summaries") \
-                .select("markdown_content") \
-                .eq("user_id", request.user_id) \
-                .eq("filename", request.filename) \
-                .execute()
+            scroll_res, _ = qdrant.scroll(
+                collection_name="document_summaries",
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(key="user_id", match=models.MatchValue(value=request.user_id)),
+                        models.FieldCondition(key="filename", match=models.MatchValue(value=request.filename))
+                    ]
+                ),
+                limit=1
+            )
             
-            if summary_response.data:
-                document_summary = f"--- Document Summary for {request.filename} ---\n{summary_response.data[0]['markdown_content']}\n\n"
+            if scroll_res:
+                summary_text = scroll_res[0].payload.get("markdown_content", "")
+                document_summary = f"--- Document Summary for {request.filename} ---\n{summary_text}\n\n"
 
-        # Combine the summary and the specific RAG chunks
         final_context = document_summary + "--- Specific Document Chunks ---\n" + (retrieved_context if retrieved_context else "No specific chunks matched.")
 
-        # 4. GENERATE THE FINAL ANSWER
-        final_prompt = f"""You are a helpful AI assistant. Use the following retrieved document context to answer the user's question. 
-        If you don't know the answer based on the context, just say so. Consider the conversation history if relevant.
+        # 5. NEW: HUMAN-CENTRIC FINAL PROMPT WITH SUGGESTED QUESTIONS
+        final_prompt = f"""You are an intuitive, engaging, and articulate AI assistant. Your goal is to answer the user's question by seamlessly weaving together information from the retrieved context. 
+
+        CRITICAL GUIDELINES FOR YOUR RESPONSE:
+        - Talk like a human expert. Do not copy-paste or regurgitate chunks verbatim. Synthesize facts into a smooth, natural flow.
+        - Structure your response cleanly using markdown (bolding, clear lists, short paragraphs) to make it highly readable.
+        - If the retrieved context doesn't contain the answer, gracefully let the user know without guessing.
+        - Keep the conversational history in mind to stay contextually relevant.
+
+        COMPLETION REQUIREMENT:
+        At the absolute end of your response, leave two line breaks and create a section titled "### Suggested Questions". 
+        Under this header, provide 2 to 3 concise, highly relevant follow-up questions that the user might want to ask next based on this document and your current answer. Use standard bullet points.
 
         Retrieved Document Context:
         {final_context}
@@ -205,15 +246,13 @@ async def chat_with_memory(request: ChatRequest):
         final_response = chat_model.invoke(final_prompt)
         ai_answer = final_response.content
 
-        # 5. SAVE TO EPISODIC MEMORY
-        # Save the User's message
+        # 6. SAVE TO EPISODIC MEMORY (SUPABASE)
         supabase.table("messages").insert({
             "chat_id": request.session_id,
             "role": "user",
             "content": request.message
         }).execute()
 
-        # Save the AI's response
         supabase.table("messages").insert({
             "chat_id": request.session_id,
             "role": "assistant",
