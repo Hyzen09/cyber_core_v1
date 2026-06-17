@@ -1,5 +1,6 @@
 import os
 import uuid
+import re
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -10,7 +11,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_ollama import OllamaEmbeddings, ChatOllama
 from dotenv import load_dotenv
 
-# Import Qdrant
 from qdrant_client import QdrantClient, models
 
 app = FastAPI()
@@ -23,7 +23,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load environment variables
 load_dotenv(".env.local")
 
 # ==========================================
@@ -58,7 +57,7 @@ for name in collection_names:
 # 3. INITIALIZE AI MODELS
 # ==========================================
 embeddings_model = OllamaEmbeddings(model="nomic-embed-text", base_url="http://127.0.0.1:11434")
-chat_model = ChatOllama(model="qwen2.5-coder:7b", base_url="http://127.0.0.1:11434", temperature=0.4) # Slightly increased temperature for more natural flow
+chat_model = ChatOllama(model="qwen2.5-coder:7b", base_url="http://127.0.0.1:11434", temperature=0.4)
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, length_function=len)
 
 # ==========================================
@@ -76,7 +75,8 @@ class ChatRequest(BaseModel):
 @app.post("/api/upload-pdf")
 async def upload_pdf(
     file: UploadFile = File(...),
-    user_id: str = Form(...) 
+    user_id: str = Form(...),
+    session_id: str = Form(...)  
 ):
     if not file.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
@@ -91,7 +91,7 @@ async def upload_pdf(
             full_text += pytesseract.image_to_string(image) + "\n"
 
         # 2. GENERATE MARKDOWN SUMMARY
-        print(f"Asking Qwen to generate Markdown for {file.filename}...")
+        print(f"Asking Qwen to generate Markdown for {file.filename} in session {session_id}...")
         prompt = f"""You are a master data analyst. Read the following document text and extract all the detailed and key information. 
         Format your response strictly as a comprehensive Markdown (.md) document. Include headers, bullet points, and key metrics.
         
@@ -101,7 +101,7 @@ async def upload_pdf(
         summary_response = chat_model.invoke(prompt)
         markdown_content = summary_response.content
 
-        # 3. Save Summary to Qdrant
+        # 3. Save Summary to Qdrant 
         summary_vector = embeddings_model.embed_query(markdown_content)
         qdrant.upsert(
             collection_name="document_summaries",
@@ -111,6 +111,7 @@ async def upload_pdf(
                     vector=summary_vector,
                     payload={
                         "user_id": user_id,
+                        "session_id": session_id, 
                         "filename": file.filename,
                         "markdown_content": markdown_content
                     }
@@ -129,6 +130,7 @@ async def upload_pdf(
                     vector=vector,
                     payload={
                         "user_id": user_id,
+                        "session_id": session_id, 
                         "filename": file.filename,
                         "content": chunk
                     }
@@ -150,7 +152,7 @@ async def upload_pdf(
         raise HTTPException(status_code=500, detail="Failed to process and embed PDF")
 
 # ==========================================
-# ENDPOINT 2: RAG CHAT WITH MEMORY
+# ENDPOINT 2: RAG CHAT WITH MEMORY 
 # ==========================================
 @app.post("/api/chat")
 async def chat_with_memory(request: ChatRequest):
@@ -188,10 +190,8 @@ async def chat_with_memory(request: ChatRequest):
             query=query_vector,
             query_filter=models.Filter(
                 must=[
-                    models.FieldCondition(
-                        key="user_id",
-                        match=models.MatchValue(value=request.user_id)
-                    )
+                    models.FieldCondition(key="user_id", match=models.MatchValue(value=request.user_id)),
+                    models.FieldCondition(key="session_id", match=models.MatchValue(value=request.session_id))
                 ]
             ),
             limit=4,
@@ -201,38 +201,49 @@ async def chat_with_memory(request: ChatRequest):
         context_texts = [hit.payload['content'] for hit in search_result.points]
         retrieved_context = "\n\n---\n\n".join(context_texts) if context_texts else ""
 
-        # 4. FETCH DOCUMENT SUMMARY FROM QDRANT
+        # 4. FETCH ALL DOCUMENT SUMMARIES FOR THIS SESSION
         document_summary = ""
-        if request.filename:
-            scroll_res, _ = qdrant.scroll(
-                collection_name="document_summaries",
-                scroll_filter=models.Filter(
-                    must=[
-                        models.FieldCondition(key="user_id", match=models.MatchValue(value=request.user_id)),
-                        models.FieldCondition(key="filename", match=models.MatchValue(value=request.filename))
-                    ]
-                ),
-                limit=1
-            )
-            
-            if scroll_res:
-                summary_text = scroll_res[0].payload.get("markdown_content", "")
-                document_summary = f"--- Document Summary for {request.filename} ---\n{summary_text}\n\n"
+        scroll_res, _ = qdrant.scroll(
+            collection_name="document_summaries",
+            scroll_filter=models.Filter(
+                must=[
+                    models.FieldCondition(key="user_id", match=models.MatchValue(value=request.user_id)),
+                    models.FieldCondition(key="session_id", match=models.MatchValue(value=request.session_id))
+                ]
+            ),
+            limit=5 
+        )
+        
+        for res in scroll_res:
+            summary_text = res.payload.get("markdown_content", "")
+            fname = res.payload.get("filename", "Document")
+            document_summary += f"--- Document Summary for {fname} ---\n{summary_text}\n\n"
 
         final_context = document_summary + "--- Specific Document Chunks ---\n" + (retrieved_context if retrieved_context else "No specific chunks matched.")
 
-        # 5. NEW: HUMAN-CENTRIC FINAL PROMPT WITH SUGGESTED QUESTIONS
+        # ==========================================
+        # 5. NEW: REFINED HUMAN-CENTRIC FINAL PROMPT
+        # ==========================================
+        # ==========================================
+        # 5. NEW: BULLETPROOF PROMPT WITH ANTI-EXAMPLES
+        # ==========================================
         final_prompt = f"""You are an intuitive, engaging, and articulate AI assistant. Your goal is to answer the user's question by seamlessly weaving together information from the retrieved context. 
 
         CRITICAL GUIDELINES FOR YOUR RESPONSE:
-        - Talk like a human expert. Do not copy-paste or regurgitate chunks verbatim. Synthesize facts into a smooth, natural flow.
-        - Structure your response cleanly using markdown (bolding, clear lists, short paragraphs) to make it highly readable.
+        - Talk like a human expert. Do not copy-paste chunks verbatim. Synthesize facts into a smooth, natural flow.
+        - Structure your response cleanly using markdown (bolding, clear lists, short paragraphs).
         - If the retrieved context doesn't contain the answer, gracefully let the user know without guessing.
-        - Keep the conversational history in mind to stay contextually relevant.
 
-        COMPLETION REQUIREMENT:
-        At the absolute end of your response, leave two line breaks and create a section titled "### Suggested Questions". 
-        Under this header, provide 2 to 3 concise, highly relevant follow-up questions that the user might want to ask next based on this document and your current answer. Use standard bullet points.
+        SUGGESTION REQUIREMENT (CRITICAL):
+        You must generate 2 to 3 suggested prompts that the USER can click to ask YOU next, based on the document's content.
+        
+        - GOOD EXAMPLE: "What is the workflow of this project?"
+        - GOOD EXAMPLE: "Can you explain the methodology used in section 2?"
+        - BAD EXAMPLE: "What would you like to learn about today?" (NEVER ask the user questions).
+        - BAD EXAMPLE: "Would you like me to elaborate?" (NEVER offer help in the suggestions).
+        
+        You MUST wrap these suggested user prompts strictly inside <suggestions> and </suggestions> XML tags. 
+        Place each prompt on a new line. Do NOT use numbers or bullet points.
 
         Retrieved Document Context:
         {final_context}
@@ -244,9 +255,34 @@ async def chat_with_memory(request: ChatRequest):
         Answer:"""
 
         final_response = chat_model.invoke(final_prompt)
-        ai_answer = final_response.content
+        raw_content = final_response.content
 
-        # 6. SAVE TO EPISODIC MEMORY (SUPABASE)
+        # 6. PARSE OUT THE SUGGESTIONS (XML & REGEX)
+        ai_answer = raw_content
+        suggestions = []
+
+        xml_match = re.search(r'<suggestions>(.*?)</suggestions>', raw_content, re.IGNORECASE | re.DOTALL)
+        
+        if xml_match:
+            suggestions_text = xml_match.group(1).strip()
+            ai_answer = raw_content[:xml_match.start()].strip()
+        else:
+            fallback_match = re.search(r'(?:\[SUGGESTIONS\]|\*\*SUGGESTIONS?:?\*\*|### SUGGESTIONS?|\*\*SUGGESTED QUESTIONS?:?\*\*|### SUGGESTED QUESTIONS?)', raw_content, re.IGNORECASE)
+            if fallback_match:
+                suggestions_text = raw_content[fallback_match.end():].strip()
+                ai_answer = raw_content[:fallback_match.start()].strip()
+            else:
+                suggestions_text = ""
+
+        if suggestions_text:
+            raw_lines = suggestions_text.split('\n')
+            for line in raw_lines:
+                clean_line = line.strip().lstrip("-*•1234567890. \t").strip()
+                clean_line = re.sub(r'<[^>]+>', '', clean_line).strip()
+                if len(clean_line) > 5 and clean_line.endswith('?'):
+                    suggestions.append(clean_line)
+
+        # 7. SAVE TO EPISODIC MEMORY
         supabase.table("messages").insert({
             "chat_id": request.session_id,
             "role": "user",
@@ -262,6 +298,7 @@ async def chat_with_memory(request: ChatRequest):
         return {
             "status": "success",
             "answer": ai_answer,
+            "suggestions": suggestions,
             "retrieved_documents": len(context_texts)
         }
 
