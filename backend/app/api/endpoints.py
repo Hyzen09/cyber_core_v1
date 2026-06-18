@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from app.models import ChatRequest
-from app.services.document_processor import process_and_store_pdf
-from app.services.rag_service import generate_chat_response
+from app.services.pdf_extraction import process_and_store_pdf
+from app.services.chat_generation import generate_chat_response
 import traceback
 
 router = APIRouter()

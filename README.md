@@ -16,14 +16,14 @@
 
 ## 💻 Tech Stack
 
-### Frontend (`/chatbot`)
+### Frontend (`/frontend`)
 - **Framework**: Next.js 16 (App Router), React 19
 - **Styling**: Tailwind CSS v4
 - **Language**: TypeScript
 - **Auth & Database SDK**: `@supabase/ssr`, `@supabase/supabase-js`
 - **Markdown Rendering**: `react-markdown`, `remark-gfm`
 
-### Backend (`/pdf-ocr-backend`)
+### Backend (`/backend`)
 - **Framework**: FastAPI (Python)
 - **OCR Engine**: `pdf2image`, Tesseract (`pytesseract`)
 - **AI Framework**: LangChain (`langchain-ollama`, `langchain-text-splitters`)
@@ -61,11 +61,11 @@ cd cyber_core_v1
 
 ### 2. Frontend Setup
 ```bash
-cd chatbot
+cd frontend
 npm install
 ```
 
-Create a `.env.local` file in the `chatbot/` directory with your Supabase credentials:
+Create a `.env.local` file in the `frontend/` directory with your Supabase credentials:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -74,13 +74,13 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 ### 3. Backend Setup
 ```bash
-cd ../pdf-ocr-backend
+cd ../backend
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Create a `.env.local` file in the `pdf-ocr-backend/` directory:
+Create a `.env.local` file in the `backend/` directory:
 ```env
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
@@ -95,7 +95,7 @@ You will need to run both the frontend and backend servers simultaneously.
 ### Start the Python Backend
 Open a new terminal window:
 ```bash
-cd pdf-ocr-backend
+cd backend
 source venv/bin/activate
 uvicorn main:app --reload --port 8000
 ```
@@ -103,7 +103,7 @@ uvicorn main:app --reload --port 8000
 ### Start the Next.js Frontend
 Open another terminal window:
 ```bash
-cd chatbot
+cd frontend
 npm run dev
 ```
 
@@ -115,7 +115,7 @@ The application will now be available at `http://localhost:3000`.
 
 ```
 cyber_core_v1/
-├── chatbot/                     # Next.js Frontend Application
+├── frontend/                    # Next.js Frontend Application
 │   ├── app/                     # Next.js App Router (Pages & Layouts)
 │   │   ├── actions/             # Server Actions for DB operations
 │   │   ├── api/                 # Next.js API Routes
@@ -125,7 +125,7 @@ cyber_core_v1/
 │   │   └── lib/                 # Utility functions (Supabase clients)
 │   └── package.json             # Frontend Dependencies
 │
-├── pdf-ocr-backend/             # FastAPI Python Backend
+├── backend/                     # FastAPI Python Backend
 │   ├── app/                     # Backend API logic & routes
 │   ├── main.py                  # FastAPI Application Entrypoint
 │   └── requirements.txt         # Python Dependencies

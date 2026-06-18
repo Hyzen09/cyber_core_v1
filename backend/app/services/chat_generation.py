@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from app.models import ChatRequest
 from app.core.database import supabase
 from app.core.vector_store import qdrant, models
-from app.services.llm_service import chat_model, embeddings_model
+from app.services.model_config import chat_model, embeddings_model
 
 async def generate_chat_response(request: ChatRequest):
     history_response = supabase.table("messages") \

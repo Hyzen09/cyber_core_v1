@@ -8,14 +8,14 @@ It also includes a **module-wise mind plan** for extending the application with 
 
 ## 1. Complete Tech Stack Breakdown
 
-### Frontend (Next.js Application - `chatbot/`)
+### Frontend (Next.js Application - `frontend/`)
 * **Framework**: Next.js 16 (App Router) combined with React 19.
 * **Language**: TypeScript for strong static typing, auto-completion, and error prevention.
 * **Styling**: Tailwind CSS v4, customized heavily for a sleek, modern, professional dark-mode aesthetic using CSS variables, custom classes, and SVGs.
 * **Markdown Rendering**: `react-markdown` and `remark-gfm` allow the frontend to render structured markdown (tables, code blocks, lists) returned by the AI.
 * **Auth & Database SDK**: `@supabase/ssr` and `@supabase/supabase-js` for robust user authentication and direct database communication.
 
-### Backend (Python API - `pdf-ocr-backend/`)
+### Backend (Python API - `backend/`)
 * **Framework**: FastAPI, chosen for its high-performance asynchronous request handling.
 * **OCR Pipeline**: `pdf2image` and Tesseract (`pytesseract`) to extract raw text from PDF uploads.
 * **AI & RAG Framework**: LangChain (`langchain_ollama`, `langchain_text_splitters`) to coordinate AI models and document chunking.
@@ -41,7 +41,7 @@ It also includes a **module-wise mind plan** for extending the application with 
 
 ### C. The Chat Interface & React State
 * **Concept**: React uses Hooks to store data that changes over time and trigger UI updates efficiently.
-* **Implementation (`app/chat/page.tsx` & `app/components/ProfessionalChatDarkMode.tsx`)**:
+* **Implementation (`app/chat/page.tsx` & `app/components/ChatInterface.tsx`)**:
   * `useState`: Manages chat lists (`chats`), the current conversation (`messages`), and UI states like loading spinners (`isLoading`) or the currently active uploaded file (`activeFilename`).
   * `useEffect`: Handles side effects. When the page loads, it triggers an effect to verify the user's Supabase session. Another effect auto-scrolls the window to the bottom whenever new messages are added.
 

@@ -4,7 +4,7 @@ from fastapi import UploadFile, HTTPException
 from pdf2image import convert_from_bytes
 # pyrefly: ignore [missing-import]
 import pytesseract
-from app.services.llm_service import embeddings_model, chat_model, text_splitter
+from app.services.model_config import embeddings_model, chat_model, text_splitter
 from app.core.vector_store import qdrant, models
 
 async def process_and_store_pdf(file: UploadFile, user_id: str, session_id: str):
