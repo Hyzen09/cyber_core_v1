@@ -109,6 +109,13 @@ export default function ChatPage() {
   // --- INITIALIZATION ---
   useEffect(() => {
     const initializeApp = async () => {
+      // PLAYWRIGHT TEST BYPASS
+      if (typeof window !== 'undefined' && window.localStorage.getItem('PLAYWRIGHT_TEST') === 'true') {
+        setUserName('Test User (E2E)');
+        fetchChats();
+        return;
+      }
+
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) {
         router.push('/login');
@@ -509,7 +516,7 @@ export default function ChatPage() {
                 )}
 
                 {/* Message Bubble */}
-                <div className={`p-4 shadow-sm max-w-[85%] break-words ${
+                <div data-testid="message-bubble" className={`p-4 shadow-sm max-w-[85%] break-words ${
                   msg.role === 'user' 
                     ? 'bg-[#0052ff] rounded-2xl rounded-tr-sm text-white text-base font-medium' 
                     : msg.role === 'system'
@@ -555,7 +562,7 @@ export default function ChatPage() {
                  <div className="w-8 h-8 rounded-full bg-[#282934] flex items-center justify-center shrink-0 mt-1 border border-[#434656]">
                     <Cpu className="w-4 h-4 text-[#c3c5d9] animate-pulse" />
                  </div>
-                 <div className="bg-[#1d1f29] rounded-2xl rounded-tl-sm p-4 text-[#e1e1ef] text-base border border-[#434656] flex items-center space-x-2 uppercase text-sm">
+                 <div data-testid="loading-indicator" className="bg-[#1d1f29] rounded-2xl rounded-tl-sm p-4 text-[#e1e1ef] text-base border border-[#434656] flex items-center space-x-2 uppercase text-sm">
                     PROCESSING COMPUTATION...
                  </div>
               </div>
@@ -587,6 +594,7 @@ export default function ChatPage() {
               <div className="flex items-center bg-[#1d1f29] border border-[#434656] rounded-xl shadow-sm focus-within:border-[#b7c4ff] focus-within:ring-1 focus-within:ring-[#b7c4ff] transition-all overflow-hidden p-1">
                 <ChevronRight className="w-6 h-6 text-[#b7c4ff] ml-3 mr-1 shrink-0" />
                 <textarea 
+                  data-testid="chat-input"
                   ref={chatInputRef}
                   value={input}
                   onChange={(e) => {
@@ -626,6 +634,7 @@ export default function ChatPage() {
                     )}
                   </button>
                   <button 
+                    data-testid="send-button"
                     type="submit"
                     disabled={!input.trim() || isLoading || isUploading}
                     className="bg-[#0052ff] hover:bg-[#0052ff]/80 text-[#dfe3ff] disabled:opacity-50 font-semibold text-sm py-1.5 px-4 rounded-lg flex items-center space-x-1 transition-colors shadow-sm ml-1"
