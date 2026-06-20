@@ -28,6 +28,23 @@ services:
     networks:
       - cyber_net
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: "https://zuswmcqwudybxbpxcoaw.supabase.co"
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_tE5-ptTYbqH2Q9s87JvQiQ_P8HNltYq"
+    container_name: cyber_core_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - cyber_net
+
 networks:
   cyber_net:
     driver: bridge

@@ -22,7 +22,12 @@ It also includes a **module-wise mind plan** for extending the application with 
 * **Local Models**: 
   * `ChatOllama` running `qwen2.5-coder:7b` as the core reasoning engine.
   * `OllamaEmbeddings` running `nomic-embed-text` for vectorizing text.
-* **Vector Store**: Supabase (utilizing PostgreSQL's `pgvector` extension) stores both standard relational data and high-dimensional document vectors.
+* **Databases**: 
+  * **Qdrant**: A dedicated high-performance vector database used to store high-dimensional document chunks.
+  * **Supabase**: Utilized for standard relational data, including episodic chat history and user authentication.
+
+### Orchestration (`docker-compose.yml`)
+* **Docker**: The entire tech stack is containerized. A root `docker-compose.yml` orchestrates the isolated Python Backend, Next.js Frontend, and Qdrant Vector database, routing networking through an internal bridge (`cyber_net`) and exposing necessary ports natively.
 
 ---
 
@@ -55,11 +60,11 @@ It also includes a **module-wise mind plan** for extending the application with 
   1. The frontend sends a PDF via `FormData`.
   2. The Python backend extracts text via OCR.
   3. The local LLM generates a summary.
-  4. Text is chunked, embedded, and stored in Supabase `pgvector`.
+  4. Text is chunked, embedded, and stored in the localized **Qdrant** database (`document_chunks` collection).
 * **The Chat Flow (`/api/chat`)**:
   1. The user sends a prompt from Next.js.
-  2. The backend retrieves past messages (Episodic Memory) and reformulates the question.
-  3. A Vector Search (`match_document_chunks`) finds relevant text from the uploaded PDF.
+  2. The backend retrieves past messages from Supabase (Episodic Memory) and reformulates the question.
+  3. A Vector Search (`qdrant.query_points`) finds relevant text from the uploaded PDF.
   4. The chunks and chat history are fed to the LLM to generate a highly contextual answer.
 
 ---

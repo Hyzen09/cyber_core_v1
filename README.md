@@ -10,7 +10,7 @@
 - **Secure Authentication**: End-to-end user authentication (Email & Google OAuth) via Supabase Auth and Server Actions.
 - **PDF Upload & OCR Processing**: Seamlessly upload PDFs to be processed by a FastAPI backend using Tesseract OCR.
 - **Local AI & RAG**: Uses `Ollama` locally for completely private inference. Powered by `qwen2.5-coder:7b` for reasoning and `nomic-embed-text` for vectorizing document chunks.
-- **Vector Search**: Leverages Supabase PostgreSQL (`pgvector`) to store document embeddings and perform high-speed similarity searches for contextual AI responses.
+- **Vector Search**: Leverages **Qdrant** to securely store document embeddings and perform high-speed similarity searches, while using Supabase for chat history and authentication.
 
 ---
 
@@ -27,7 +27,7 @@
 - **Framework**: FastAPI (Python)
 - **OCR Engine**: `pdf2image`, Tesseract (`pytesseract`)
 - **AI Framework**: LangChain (`langchain-ollama`, `langchain-text-splitters`)
-- **Vector Database**: Supabase (`pgvector`)
+- **Vector Database**: Qdrant
 - **Local Models**: Ollama (`qwen2.5-coder:7b`, `nomic-embed-text`)
 
 ---
@@ -38,9 +38,8 @@ Before you begin, ensure you have the following installed:
 1. **Node.js** (v20+ recommended)
 2. **Python** (v3.10+ recommended)
 3. **Ollama**: Installed and running locally.
-4. **Tesseract OCR**: Required for PDF text extraction.
-5. **Poppler**: Required by `pdf2image` for rendering PDFs.
-6. **Supabase Account**: A Supabase project set up with Auth and a `pgvector` enabled Postgres database.
+4. **Docker & Docker Compose**: Required to spin up the containerized application stack.
+5. **Supabase Account**: A Supabase project set up with Auth and a `messages` table for chat history.
 
 ### Local Model Setup
 Ensure Ollama is running, then pull the necessary models:
@@ -59,12 +58,7 @@ git clone https://github.com/yourusername/cyber_core_v1.git
 cd cyber_core_v1
 ```
 
-### 2. Frontend Setup
-```bash
-cd frontend
-npm install
-```
-
+### 2. Environment Configuration
 Create a `.env.local` file in the `frontend/` directory with your Supabase credentials:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
@@ -72,42 +66,23 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
-### 3. Backend Setup
-```bash
-cd ../backend
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-Create a `.env.local` file in the `backend/` directory:
+Create a `.env` file in the `backend/` directory:
 ```env
 SUPABASE_URL=your_supabase_project_url
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+SUPABASE_KEY=your_supabase_service_role_key
+
+QDRANT_HOST=qdrant
+QDRANT_PORT=6333
+QDRANT_API_KEY=""
 ```
 
----
-
-## 🏃‍♂️ Running the Application
-
-You will need to run both the frontend and backend servers simultaneously.
-
-### Start the Python Backend
-Open a new terminal window:
+### 3. Run with Docker Compose
+The entire stack (Frontend, Backend, and Qdrant) is fully containerized. To build and start the cluster:
 ```bash
-cd backend
-source venv/bin/activate
-uvicorn main:app --reload --port 8000
+docker compose up -d --build
 ```
 
-### Start the Next.js Frontend
-Open another terminal window:
-```bash
-cd frontend
-npm run dev
-```
-
-The application will now be available at `http://localhost:3000`.
+The application will now be available at `http://localhost:3000`, and the API runs securely at `http://localhost:8000`.
 
 ---
 
