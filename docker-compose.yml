@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cyber_core_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - qdrant
+    networks:
+      - cyber_net
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: cyber_core_qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./qdrant_storage:/qdrant/storage:z
+    networks:
+      - cyber_net
+
+networks:
+  cyber_net:
+    driver: bridge
