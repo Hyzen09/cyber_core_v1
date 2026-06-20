@@ -111,6 +111,3 @@ cyber_core_v1/
 
 ---
 
-## 📜 License
-
-This project is licensed under the MIT License.
