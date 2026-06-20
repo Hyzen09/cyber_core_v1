@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* --- GOOGLE FONTS & ICONS (Must be at the top) --- */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+/* Add to globals.css */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+/* --- TAILWIND V4 THEME CONFIGURATION --- */
+@theme {
+  --color-tertiary: #e8ffda;
+  --color-primary: #e3fdff;
+  --color-background: #131313;
+  --color-surface-container-low: #1c1b1b;
+  --color-tertiary-container: #36fd0f;
+  --color-secondary: #ffabf3;
+  --color-primary-fixed: #6ff6ff;
+  --color-surface-container-high: #2a2a2a;
+  --color-on-primary: #00373a;
+  --color-primary-container: #00f3ff;
+  --color-surface-container-lowest: #0e0e0e;
+  --color-on-surface-variant: #b9cacb;
+  --color-surface: #131313;
+  --color-outline: #849495;
+  --color-surface-variant: #353534;
+  --color-surface-container: #201f1f;
+  --color-on-surface: #e5e2e1;
+  --color-on-background: #e5e2e1;
+  --color-error: #ffb4ab;
+
+  --font-headline-md: 'Space Mono', monospace;
+  --font-label-sm: 'JetBrains Mono', monospace;
+  --font-body-md: 'Space Mono', monospace;
+}
+
+/* --- CYBERPUNK TERMINAL EFFECTS --- */
+body {
+    background-color: var(--color-background);
+    background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+}
+
+.scanlines {
+    background: linear-gradient(
+        to bottom,
+        rgba(255,255,255,0),
+        rgba(255,255,255,0) 50%,
+        rgba(0,0,0,0.2) 50%,
+        rgba(0,0,0,0.2)
+    );
+    background-size: 100% 4px;
+}
+
+.scanline-texture {
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 1px,
+        rgba(0, 243, 255, 0.05) 1px,
+        rgba(0, 243, 255, 0.05) 2px
+    );
+}
+
+.glow-sm { box-shadow: 0 0 5px var(--color-primary-container); }
+.glow-md { box-shadow: 0 0 10px var(--color-primary-container); }
+
+/* Custom scrollbar for terminal feel */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--color-background); border-left: 1px solid rgba(0, 243, 255, 0.1); }
+::-webkit-scrollbar-thumb { background: var(--color-on-primary-container); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-primary-container); }
+
+.btn-cyber { transition: all 0.1s; }
+.btn-cyber:hover {
+    background-color: var(--color-primary-container);
+    color: #050505;
+    animation: flicker 0.15s infinite alternate;
+}
+
+@keyframes flicker {
+    0% { opacity: 1; }
+    50% { opacity: 0.8; }
+    100% { opacity: 1; }
+}
+
+.blinking-cursor::after {
+    content: '_';
+    animation: blink 1s step-start infinite;
+    color: var(--color-primary-container);
+}
+@keyframes blink { 50% { opacity: 0; } }
