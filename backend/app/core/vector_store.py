@@ -1,3 +1,4 @@
+# pyrefly: ignore [missing-import]
 from qdrant_client import QdrantClient, models
 from app.config import QDRANT_URL, QDRANT_API_KEY
 
@@ -12,5 +13,3 @@ def init_collections():
                 vectors_config=models.VectorParams(size=768, distance=models.Distance.COSINE)
             )
             print(f"Created Qdrant Collection: {name}")
-
-init_collections()

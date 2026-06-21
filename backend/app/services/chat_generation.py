@@ -26,10 +26,18 @@ async def generate_chat_response(request: ChatRequest):
         New Question: {request.message}
         Standalone Question:"""
         
-        reformulation_response = chat_model.invoke(reformulation_prompt)
+        reformulation_response = await chat_model.ainvoke(reformulation_prompt)
         standalone_query = reformulation_response.content.strip()
 
-    query_vector = embeddings_model.embed_query(standalone_query)
+    agent_prompt = None
+    if request.agent_id:
+        agent_res = supabase.table("agents").select("prompt").eq("id", request.agent_id).execute()
+        if agent_res.data:
+            agent_prompt = agent_res.data[0]["prompt"]
+            
+    qdrant_session_id = request.agent_id if request.agent_id else request.session_id
+
+    query_vector = await embeddings_model.aembed_query(standalone_query)
 
     search_result = qdrant.query_points(
         collection_name="document_chunks",
@@ -37,7 +45,7 @@ async def generate_chat_response(request: ChatRequest):
         query_filter=models.Filter(
             must=[
                 models.FieldCondition(key="user_id", match=models.MatchValue(value=request.user_id)),
-                models.FieldCondition(key="session_id", match=models.MatchValue(value=request.session_id))
+                models.FieldCondition(key="session_id", match=models.MatchValue(value=qdrant_session_id))
             ]
         ),
         limit=4,
@@ -53,7 +61,7 @@ async def generate_chat_response(request: ChatRequest):
         scroll_filter=models.Filter(
             must=[
                 models.FieldCondition(key="user_id", match=models.MatchValue(value=request.user_id)),
-                models.FieldCondition(key="session_id", match=models.MatchValue(value=request.session_id))
+                models.FieldCondition(key="session_id", match=models.MatchValue(value=qdrant_session_id))
             ]
         ),
         limit=5 
@@ -66,7 +74,8 @@ async def generate_chat_response(request: ChatRequest):
 
     final_context = document_summary + "--- Specific Document Chunks ---\n" + (retrieved_context if retrieved_context else "No specific chunks matched.")
 
-    final_prompt = f"""You are an intuitive, engaging, and articulate AI assistant. Your goal is to answer the user's question by seamlessly weaving together information from the retrieved context. 
+    system_instruction = agent_prompt if agent_prompt else "You are an intuitive, engaging, and articulate AI assistant. Your goal is to answer the user's question by seamlessly weaving together information from the retrieved context."
+    final_prompt = f"""{system_instruction}
 
     CRITICAL GUIDELINES FOR YOUR RESPONSE:
     - Talk like a human expert. Do not copy-paste chunks verbatim. Synthesize facts into a smooth, natural flow.
@@ -89,7 +98,7 @@ async def generate_chat_response(request: ChatRequest):
     User Question: {request.message}
     Answer:"""
 
-    final_response = chat_model.invoke(final_prompt)
+    final_response = await chat_model.ainvoke(final_prompt)
     raw_content = final_response.content
 
     ai_answer = raw_content

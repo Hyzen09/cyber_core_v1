@@ -19,6 +19,12 @@ export async function loadChatAction(chatId: string) {
   return data
 }
 
+export async function getChatDetailsAction(chatId: string) {
+  const { data, error } = await supabase.from('chats').select('*').eq('id', chatId).single()
+  if (error) throw error
+  return data
+}
+
 export async function renameChatAction(chatId: string, title: string) {
   const { error } = await supabase.from('chats').update({ title }).eq('id', chatId)
   if (error) throw error
@@ -32,8 +38,11 @@ export async function deleteChatAction(chatId: string) {
   return true
 }
 
-export async function createChatAction(title: string) {
-  const { data, error } = await supabase.from('chats').insert([{ title }]).select().single()
+export async function createChatAction(title: string, agent_id?: string) {
+  const insertData: any = { title }
+  if (agent_id) insertData.agent_id = agent_id
+  
+  const { data, error } = await supabase.from('chats').insert([insertData]).select().single()
   if (error) throw error
   return data
 }

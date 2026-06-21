@@ -2,11 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/app/lib/supabase';
-import { fetchChatsAction, loadChatAction, renameChatAction, deleteChatAction, createChatAction } from '@/app/actions/db';
+import { fetchChatsAction, loadChatAction, renameChatAction, deleteChatAction, createChatAction, getChatDetailsAction } from '@/app/actions/db';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useRouter } from 'next/navigation';
-import { User, Plus, History, Edit2, Trash2, Power, Menu, MessageSquare, Settings, Cpu, ChevronRight, Paperclip, Loader2, CornerDownLeft, Copy, Check } from 'lucide-react';
+import Link from 'next/link';
+import { User, Plus, History, Edit2, Trash2, Power, Menu, MessageSquare, Settings, Cpu, ChevronRight, Paperclip, Loader2, CornerDownLeft, Copy, Check, Users } from 'lucide-react';
 
 type Message = {
   id: string;
@@ -65,6 +66,7 @@ export default function ChatPage() {
   // Chat State
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [currentAgentId, setCurrentAgentId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -124,6 +126,24 @@ export default function ChatPage() {
       const meta = user.user_metadata;
       const display = meta?.username || meta?.full_name || meta?.name || user.email?.split('@')[0] || 'User';
       setUserName(display);
+
+      const searchParams = new URLSearchParams(window.location.search);
+      const agentId = searchParams.get('agent_id');
+      const agentName = searchParams.get('agent_name');
+
+      if (agentId && agentName) {
+        try {
+          const newChat = await createChatAction(`Chat with ${agentName}`, agentId);
+          if (newChat) {
+            setCurrentChatId(newChat.id);
+            setCurrentAgentId(agentId);
+            window.history.replaceState({}, '', '/chat');
+          }
+        } catch (e) {
+          console.error("Failed to init agent chat", e);
+        }
+      }
+
       fetchChats();
     };
     initializeApp();
@@ -146,8 +166,11 @@ export default function ChatPage() {
   const loadChat = async (chatId: string) => {
     setCurrentChatId(chatId);
     setActiveFilename(null); 
-    setSuggestions([]); // Clear suggestions when changing chats
+    setSuggestions([]); 
     try {
+      const chatDetails = await getChatDetailsAction(chatId);
+      setCurrentAgentId(chatDetails?.agent_id || null);
+
       const data = await loadChatAction(chatId);
       if (data) setMessages(data.map(m => ({ id: m.id, role: m.role, content: m.content })));
     } catch (e) {
@@ -157,9 +180,10 @@ export default function ChatPage() {
 
   const startNewChat = () => {
     setCurrentChatId(null);
+    setCurrentAgentId(null);
     setMessages([]);
     setActiveFilename(null); 
-    setSuggestions([]); // Clear suggestions for new chat
+    setSuggestions([]);
   };
 
   const handleSignOut = async () => {
@@ -239,7 +263,7 @@ export default function ChatPage() {
     formData.append('session_id', activeChatId as string); 
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
       const response = await fetch(`${apiUrl}/api/upload-pdf`, { method: 'POST', body: formData });
       if (!response.ok) throw new Error('Upload Failed');
       const data = await response.json();
@@ -297,7 +321,7 @@ export default function ChatPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
       const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -305,7 +329,8 @@ export default function ChatPage() {
           user_id: user?.id || 'anonymous',
           session_id: activeChatId, 
           message: userMessage.content,
-          filename: activeFilename
+          filename: activeFilename,
+          agent_id: currentAgentId
         }),
       });
 
@@ -424,7 +449,13 @@ export default function ChatPage() {
         </div>
         
         <div className="p-6 border-t border-[#434656] mt-auto">
-          <ul className="space-y-1">
+          <ul className="space-y-3">
+            <li>
+              <Link href="/chat/agents" className="flex items-center space-x-3 w-full text-[#c3c5d9] hover:text-[#e1e1ef] transition-colors text-sm py-1">
+                <Users className="w-[18px] h-[18px]" />
+                <span>Manage Agents</span>
+              </Link>
+            </li>
             <li>
               <button onClick={handleSignOut} className="flex items-center space-x-3 w-full text-[#ffb4ab] hover:text-red-400 transition-colors text-sm py-1">
                 <Power className="w-[18px] h-[18px]" />

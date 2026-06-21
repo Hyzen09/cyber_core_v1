@@ -8,15 +8,18 @@ from app.services.model_config import embeddings_model, chat_model, text_splitte
 from app.core.vector_store import qdrant, models
 
 async def process_and_store_pdf(file: UploadFile, user_id: str, session_id: str):
-    if not file.filename.endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
-    
-    pdf_bytes = await file.read()
-    images = convert_from_bytes(pdf_bytes)
-    
-    full_text = ""
-    for image in images:
-        full_text += pytesseract.image_to_string(image) + "\n"
+    if file.filename.endswith('.pdf'):
+        pdf_bytes = await file.read()
+        images = convert_from_bytes(pdf_bytes)
+        
+        full_text = ""
+        for image in images:
+            full_text += pytesseract.image_to_string(image) + "\n"
+    elif file.filename.endswith('.txt') or file.filename.endswith('.csv'):
+        raw_bytes = await file.read()
+        full_text = raw_bytes.decode('utf-8')
+    else:
+        raise HTTPException(status_code=400, detail="Only PDF, CSV, and TXT files are allowed")
 
     print(f"Asking Qwen to generate Markdown for {file.filename} in session {session_id}...")
     prompt = f"""You are a master data analyst. Read the following document text and extract all the detailed and key information. 
@@ -25,10 +28,10 @@ async def process_and_store_pdf(file: UploadFile, user_id: str, session_id: str)
     DOCUMENT TEXT:
     {full_text[:25000]}"""
     
-    summary_response = chat_model.invoke(prompt)
+    summary_response = await chat_model.ainvoke(prompt)
     markdown_content = summary_response.content
 
-    summary_vector = embeddings_model.embed_query(markdown_content)
+    summary_vector = await embeddings_model.aembed_query(markdown_content)
     qdrant.upsert(
         collection_name="document_summaries",
         points=[
@@ -47,20 +50,23 @@ async def process_and_store_pdf(file: UploadFile, user_id: str, session_id: str)
 
     chunks = text_splitter.split_text(full_text)
     points = []
-    for chunk in chunks:
-        vector = embeddings_model.embed_query(chunk)
-        points.append(
-            models.PointStruct(
-                id=str(uuid.uuid4()),
-                vector=vector,
-                payload={
-                    "user_id": user_id,
-                    "session_id": session_id, 
-                    "filename": file.filename,
-                    "content": chunk
-                }
+    
+    # Process chunks efficiently with aembed_documents to avoid blocking event loop
+    if chunks:
+        chunk_vectors = await embeddings_model.aembed_documents(chunks)
+        for chunk, vector in zip(chunks, chunk_vectors):
+            points.append(
+                models.PointStruct(
+                    id=str(uuid.uuid4()),
+                    vector=vector,
+                    payload={
+                        "user_id": user_id,
+                        "session_id": session_id, 
+                        "filename": file.filename,
+                        "content": chunk
+                    }
+                )
             )
-        )
         
     qdrant.upsert(collection_name="document_chunks", points=points)
 

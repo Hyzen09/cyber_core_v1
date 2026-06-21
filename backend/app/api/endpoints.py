@@ -2,6 +2,7 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from app.models import ChatRequest
 from app.services.pdf_extraction import process_and_store_pdf
 from app.services.chat_generation import generate_chat_response
+from app.core.database import supabase
 import traceback
 
 router = APIRouter()
@@ -25,3 +26,29 @@ async def chat_route(request: ChatRequest):
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
+
+@router.post("/api/agents")
+async def create_agent_route(
+    name: str = Form(...),
+    description: str = Form(...),
+    prompt: str = Form(...),
+    user_id: str = Form(...),
+    file: UploadFile = File(...)
+):
+    try:
+        agent_data = {
+            "name": name,
+            "description": description,
+            "prompt": prompt,
+            "user_id": user_id,
+            "status": "Active"
+        }
+        res = supabase.table("agents").insert(agent_data).execute()
+        agent_id = res.data[0]["id"]
+        
+        await process_and_store_pdf(file, user_id, agent_id)
+        
+        return {"status": "success", "agent_id": agent_id}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to create agent: {str(e)}")

@@ -5,3 +5,4 @@ class ChatRequest(BaseModel):
     session_id: str
     message: str
     filename: str | None = None
+    agent_id: str | None = None
