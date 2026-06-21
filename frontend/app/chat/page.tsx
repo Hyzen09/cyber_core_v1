@@ -114,7 +114,7 @@ export default function ChatPage() {
       // PLAYWRIGHT TEST BYPASS
       if (typeof window !== 'undefined' && window.localStorage.getItem('PLAYWRIGHT_TEST') === 'true') {
         setUserName('Test User (E2E)');
-        fetchChats();
+        fetchChats('test-user-id');
         return;
       }
 
@@ -133,7 +133,7 @@ export default function ChatPage() {
 
       if (agentId && agentName) {
         try {
-          const newChat = await createChatAction(`Chat with ${agentName}`, agentId);
+          const newChat = await createChatAction(`Chat with ${agentName}`, user.id, agentId);
           if (newChat) {
             setCurrentChatId(newChat.id);
             setCurrentAgentId(agentId);
@@ -144,7 +144,7 @@ export default function ChatPage() {
         }
       }
 
-      fetchChats();
+      fetchChats(user.id);
     };
     initializeApp();
   }, []);
@@ -154,9 +154,9 @@ export default function ChatPage() {
   }, [messages]);
 
   // --- DATA FETCHING ---
-  const fetchChats = async () => {
+  const fetchChats = async (userId: string) => {
     try {
-      const data = await fetchChatsAction();
+      const data = await fetchChatsAction(userId);
       if (data) setChats(data);
     } catch (e) {
       console.error(e);
@@ -241,11 +241,11 @@ export default function ChatPage() {
     if (!activeChatId) {
       try {
         const docTitle = file.name.substring(0, 20);
-        const newChat = await createChatAction(`DOC: ${docTitle}`);
+        const newChat = await createChatAction(`DOC: ${docTitle}`, user.id);
         if (newChat) {
           activeChatId = newChat.id;
           setCurrentChatId(newChat.id);
-          fetchChats(); 
+          fetchChats(user.id); 
         } else {
           throw new Error("Failed to initialize session for upload.");
         }
@@ -294,13 +294,15 @@ export default function ChatPage() {
     let activeChatId = currentChatId;
     setSuggestions([]); // Clear suggestions instantly upon sending
 
+    const { data: { user } } = await supabase.auth.getUser();
+
     if (!activeChatId) {
       try {
-        const newChat = await createChatAction(messageText.substring(0, 20) + '...');
+        const newChat = await createChatAction(messageText.substring(0, 20) + '...', user?.id || 'anonymous');
         if (newChat) {
           activeChatId = newChat.id;
           setCurrentChatId(newChat.id);
-          fetchChats();
+          if (user) fetchChats(user.id);
         }
       } catch (chatError) {
         console.error("Failed to create chat in Supabase:", chatError);
@@ -319,8 +321,6 @@ export default function ChatPage() {
     setMessages([...newMessages, { id: assistantMessageId, role: 'assistant', content: '...' }]);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
       const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',

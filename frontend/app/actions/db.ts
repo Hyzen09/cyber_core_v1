@@ -7,8 +7,8 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1c3dtY3F3dWR5YnhicHhjb2F3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTI0NTg4NCwiZXhwIjoyMDk2ODIxODg0fQ.L9GcPISzuZa8M8_5spid9XTu6dJjNEbcFdWNb7FYDwc"
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-export async function fetchChatsAction() {
-  const { data, error } = await supabase.from('chats').select('*').order('created_at', { ascending: false })
+export async function fetchChatsAction(userId: string) {
+  const { data, error } = await supabase.from('chats').select('*').eq('user_id', userId).order('created_at', { ascending: false })
   if (error) throw error
   return data
 }
@@ -38,8 +38,8 @@ export async function deleteChatAction(chatId: string) {
   return true
 }
 
-export async function createChatAction(title: string, agent_id?: string) {
-  const insertData: any = { title }
+export async function createChatAction(title: string, userId: string, agent_id?: string) {
+  const insertData: any = { title, user_id: userId }
   if (agent_id) insertData.agent_id = agent_id
   
   const { data, error } = await supabase.from('chats').insert([insertData]).select().single()
