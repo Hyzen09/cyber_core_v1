@@ -24,7 +24,7 @@ type ChatSession = {
 const CodeBlock = ({ language, className, children }: any) => {
   const [copied, setCopied] = useState(false);
   const codeRef = useRef<HTMLElement>(null);
-  
+
   const handleCopy = () => {
     if (codeRef.current) {
       navigator.clipboard.writeText(codeRef.current.textContent || '');
@@ -58,11 +58,11 @@ const CodeBlock = ({ language, className, children }: any) => {
 
 export default function ChatPage() {
   const router = useRouter();
-  
+
   // App & User State
   const [userName, setUserName] = useState<string>('Loading...');
   const [selectedModel, setSelectedModel] = useState<'local' | 'gemini'>('local');
-  
+
   // Chat State
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
@@ -104,12 +104,20 @@ export default function ChatPage() {
   // Upload Feature State
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Tracks the document currently being discussed
   const [activeFilename, setActiveFilename] = useState<string | null>(null);
 
+  // Initial Agent Name for greeting
+  const [initialAgentName, setInitialAgentName] = useState<string | null>(null);
+
+  const initRef = useRef(false);
+
   // --- INITIALIZATION ---
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+
     const initializeApp = async () => {
       // PLAYWRIGHT TEST BYPASS
       if (typeof window !== 'undefined' && window.localStorage.getItem('PLAYWRIGHT_TEST') === 'true') {
@@ -131,20 +139,24 @@ export default function ChatPage() {
       const agentId = searchParams.get('agent_id');
       const agentName = searchParams.get('agent_name');
 
+      // Fetch chats immediately so the sidebar doesn't flash empty
+      fetchChats(user.id);
+
       if (agentId && agentName) {
+        setInitialAgentName(agentName);
         try {
           const newChat = await createChatAction(`Chat with ${agentName}`, user.id, agentId);
           if (newChat) {
             setCurrentChatId(newChat.id);
             setCurrentAgentId(agentId);
             window.history.replaceState({}, '', '/chat');
+            // Fetch chats again to include the newly created agent chat
+            fetchChats(user.id);
           }
         } catch (e) {
           console.error("Failed to init agent chat", e);
         }
       }
-
-      fetchChats(user.id);
     };
     initializeApp();
   }, []);
@@ -165,8 +177,8 @@ export default function ChatPage() {
 
   const loadChat = async (chatId: string) => {
     setCurrentChatId(chatId);
-    setActiveFilename(null); 
-    setSuggestions([]); 
+    setActiveFilename(null);
+    setSuggestions([]);
     try {
       const chatDetails = await getChatDetailsAction(chatId);
       setCurrentAgentId(chatDetails?.agent_id || null);
@@ -181,8 +193,9 @@ export default function ChatPage() {
   const startNewChat = () => {
     setCurrentChatId(null);
     setCurrentAgentId(null);
+    setInitialAgentName(null);
     setMessages([]);
-    setActiveFilename(null); 
+    setActiveFilename(null);
     setSuggestions([]);
   };
 
@@ -237,7 +250,7 @@ export default function ChatPage() {
 
     // ENSURE A CHAT SESSION EXISTS BEFORE UPLOAD
     let activeChatId = currentChatId;
-    
+
     if (!activeChatId) {
       try {
         const docTitle = file.name.substring(0, 20);
@@ -245,7 +258,7 @@ export default function ChatPage() {
         if (newChat) {
           activeChatId = newChat.id;
           setCurrentChatId(newChat.id);
-          fetchChats(user.id); 
+          fetchChats(user.id);
         } else {
           throw new Error("Failed to initialize session for upload.");
         }
@@ -260,25 +273,25 @@ export default function ChatPage() {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('user_id', user.id);
-    formData.append('session_id', activeChatId as string); 
+    formData.append('session_id', activeChatId as string);
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
       const response = await fetch(`${apiUrl}/api/upload-pdf`, { method: 'POST', body: formData });
       if (!response.ok) throw new Error('Upload Failed');
       const data = await response.json();
-      
+
       setActiveFilename(data.filename);
-      
+
       const systemMessage: Message = {
         id: Date.now().toString(),
         role: 'system',
         content: `[DATA_INGEST_COMPLETE] FILE: ${data.filename} PROCESSED & ISOLATED TO THIS SESSION.`
       };
-      
+
       setMessages(prev => [...prev, systemMessage]);
       await supabase.from('messages').insert([{ chat_id: activeChatId, role: 'system', content: systemMessage.content }]);
-      
+
     } catch (error) {
       alert('SYS_ERR: CONNECTION TO CORE OCR ENGINE (PORT 8000) FAILED.');
     } finally {
@@ -325,9 +338,9 @@ export default function ChatPage() {
       const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           user_id: user?.id || 'anonymous',
-          session_id: activeChatId, 
+          session_id: activeChatId,
           message: userMessage.content,
           filename: activeFilename,
           agent_id: currentAgentId
@@ -335,13 +348,13 @@ export default function ChatPage() {
       });
 
       if (!response.ok) {
-        const errorDetail = await response.text(); 
+        const errorDetail = await response.text();
         console.error(`Backend API Error (${response.status}):`, errorDetail);
         throw new Error(`API returned status ${response.status}: ${errorDetail}`);
       }
 
       const data = await response.json();
-      console.log("Backend Response payload:", data); 
+      console.log("Backend Response payload:", data);
 
       const fullAssistantResponse = data.answer;
 
@@ -383,7 +396,7 @@ export default function ChatPage() {
               <p className="text-xs font-bold tracking-widest text-[#c3c5d9]">STATUS: SECURE</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={startNewChat}
             className="w-full bg-[#0052ff] hover:bg-[#0052ff]/80 text-[#dfe3ff] text-sm py-2 px-4 rounded-lg flex items-center justify-center space-x-1 transition-colors shadow-sm"
           >
@@ -391,7 +404,7 @@ export default function ChatPage() {
             <span className="font-medium">NEW UPLINK</span>
           </button>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto py-2 custom-scrollbar">
           <h3 className="px-6 py-1 text-xs font-bold tracking-widest text-[#c3c5d9] mb-1">SESSION HISTORY</h3>
           <ul className="space-y-1">
@@ -413,18 +426,17 @@ export default function ChatPage() {
                       />
                     </div>
                   ) : (
-                    <button 
+                    <button
                       onClick={() => {
                         loadChat(chat.id);
                         setIsMobileMenuOpen(false);
                       }}
-                      className={`w-full text-left flex items-center space-x-3 px-6 py-2 text-sm transition-colors ${
-                        isActive 
-                          ? 'bg-[#0052ff] text-[#dfe3ff] border-l-4 border-[#b7c4ff] rounded-r-lg' 
+                      className={`w-full text-left flex items-center space-x-3 pl-6 pr-16 py-2 text-sm transition-colors ${isActive
+                          ? 'bg-[#0052ff] text-[#dfe3ff] border-l-4 border-[#b7c4ff] rounded-r-lg'
                           : 'text-[#c3c5d9] hover:bg-[#282934]'
-                      }`}
+                        }`}
                     >
-                      <History className="w-[18px] h-[18px]" />
+                      <History className="w-[18px] h-[18px] shrink-0" />
                       <span className="truncate flex-1">{chat.title}</span>
                     </button>
                   )}
@@ -447,13 +459,13 @@ export default function ChatPage() {
             )}
           </ul>
         </div>
-        
+
         <div className="p-6 border-t border-[#434656] mt-auto">
           <ul className="space-y-3">
             <li>
               <Link href="/chat/agents" className="flex items-center space-x-3 w-full text-[#c3c5d9] hover:text-[#e1e1ef] transition-colors text-sm py-1">
                 <Users className="w-[18px] h-[18px]" />
-                <span>Manage Agents</span>
+                <span>Agents</span>
               </Link>
             </li>
             <li>
@@ -471,7 +483,7 @@ export default function ChatPage() {
         {/* TopNavBar */}
         <header className="bg-[#11131c] shadow-sm z-10 sticky top-0 flex justify-between items-center w-full px-4 md:px-6 py-4 h-16 border-b border-[#434656]">
           <div className="flex items-center space-x-3 md:space-x-4 min-w-0">
-            <button 
+            <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="md:hidden text-[#e1e1ef] p-1 hover:bg-[#282934] rounded-full shrink-0"
             >
@@ -489,7 +501,7 @@ export default function ChatPage() {
             )}
             <div className="flex items-center space-x-2 bg-[#1d1f29] px-3 py-1 rounded-full border border-[#434656]">
               <span className="text-xs font-bold tracking-widest text-[#c3c5d9]">CORE:</span>
-              <select 
+              <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value as 'local' | 'gemini')}
                 className="bg-transparent text-sm text-[#e1e1ef] font-medium focus:outline-none cursor-pointer"
@@ -517,12 +529,19 @@ export default function ChatPage() {
               <div className="w-16 h-16 rounded-2xl bg-[#1d1f29] flex items-center justify-center border border-[#434656] mb-4">
                 <MessageSquare className="w-8 h-8 text-[#b7c4ff]" />
               </div>
-              <h3 className="text-xl font-bold text-[#e1e1ef] mb-2">How can I help you today?</h3>
+              <h3 className="text-xl font-bold text-[#e1e1ef] mb-2">
+                {initialAgentName 
+                  ? `I am ${initialAgentName}. How can I help you today?` 
+                  : (currentChatId && chats.find(c => c.id === currentChatId)?.title?.startsWith('Chat with ')
+                      ? `I am ${chats.find(c => c.id === currentChatId)!.title.replace('Chat with ', '')}. How can I help you today?`
+                      : "How can I help you today?")
+                }
+              </h3>
               <p className="text-[#c3c5d9] mb-8">Initiate a query or upload a document to begin the analysis protocol.</p>
-              
+
               <div className="flex flex-wrap justify-center gap-2">
                 {["Summarize my latest report", "Explain quantum computing", "Draft an email to the team"].map((suggestion, i) => (
-                  <button 
+                  <button
                     key={i}
                     onClick={() => handleSendMessage(suggestion)}
                     className="px-4 py-2 rounded-full border border-[#434656] text-[#c3c5d9] text-sm hover:bg-[#282934] transition-colors bg-[#11131c]"
@@ -538,7 +557,7 @@ export default function ChatPage() {
           <div className="space-y-6 max-w-4xl mx-auto w-full">
             {messages.map((msg, idx) => (
               <div key={msg.id || idx} className={`flex items-start space-x-3 w-full ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                
+
                 {/* Avatar for Assistant */}
                 {msg.role !== 'user' && (
                   <div className="w-8 h-8 rounded-full bg-[#282934] flex items-center justify-center shrink-0 mt-1 border border-[#434656]">
@@ -547,15 +566,14 @@ export default function ChatPage() {
                 )}
 
                 {/* Message Bubble */}
-                <div data-testid="message-bubble" className={`p-4 shadow-sm max-w-[85%] break-words ${
-                  msg.role === 'user' 
-                    ? 'bg-[#0052ff] rounded-2xl rounded-tr-sm text-white text-base font-medium' 
+                <div data-testid="message-bubble" className={`p-4 shadow-sm max-w-[85%] break-words ${msg.role === 'user'
+                    ? 'bg-[#0052ff] rounded-2xl rounded-tr-sm text-white text-base font-medium'
                     : msg.role === 'system'
-                    ? 'bg-[#282934] rounded-2xl rounded-tl-sm text-[#e1e1ef] text-base border border-[#b7c4ff]/50 uppercase text-sm'
-                    : 'bg-[#1d1f29] rounded-2xl rounded-tl-sm text-[#e1e1ef] text-base border border-[#434656]'
-                }`}>
+                      ? 'bg-[#282934] rounded-2xl rounded-tl-sm text-[#e1e1ef] text-base border border-[#b7c4ff]/50 uppercase text-sm'
+                      : 'bg-[#1d1f29] rounded-2xl rounded-tl-sm text-[#e1e1ef] text-base border border-[#434656]'
+                  }`}>
                   <div className="prose prose-sm md:prose-base max-w-none prose-invert prose-p:leading-relaxed">
-                    <ReactMarkdown 
+                    <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
                         pre: ({ children }: any) => {
@@ -586,16 +604,16 @@ export default function ChatPage() {
                 )}
               </div>
             ))}
-            
+
             {/* Loading Indicator */}
             {isLoading && messages[messages.length - 1]?.content === '' && (
               <div className="flex items-start space-x-3 max-w-4xl mx-auto w-full">
-                 <div className="w-8 h-8 rounded-full bg-[#282934] flex items-center justify-center shrink-0 mt-1 border border-[#434656]">
-                    <Cpu className="w-4 h-4 text-[#c3c5d9] animate-pulse" />
-                 </div>
-                 <div data-testid="loading-indicator" className="bg-[#1d1f29] rounded-2xl rounded-tl-sm p-4 text-[#e1e1ef] text-base border border-[#434656] flex items-center space-x-2 uppercase text-sm">
-                    PROCESSING COMPUTATION...
-                 </div>
+                <div className="w-8 h-8 rounded-full bg-[#282934] flex items-center justify-center shrink-0 mt-1 border border-[#434656]">
+                  <Cpu className="w-4 h-4 text-[#c3c5d9] animate-pulse" />
+                </div>
+                <div data-testid="loading-indicator" className="bg-[#1d1f29] rounded-2xl rounded-tl-sm p-4 text-[#e1e1ef] text-base border border-[#434656] flex items-center space-x-2 uppercase text-sm">
+                  PROCESSING COMPUTATION...
+                </div>
               </div>
             )}
             <div ref={messagesEndRef} className="h-4" />
@@ -608,7 +626,7 @@ export default function ChatPage() {
           {suggestions.length > 0 && messages.length > 0 && (
             <div className="w-full bg-[#11131c]/90 backdrop-blur-sm py-3 px-4 md:px-6 flex gap-2 overflow-x-auto custom-scrollbar border-t border-[#434656]">
               {suggestions.map((sug, i) => (
-                <button 
+                <button
                   key={i}
                   onClick={() => handleSendMessage(sug)}
                   className="shrink-0 px-4 py-2 rounded-full border border-[#434656] text-[#c3c5d9] text-sm hover:bg-[#282934] transition-colors bg-[#1d1f29] shadow-sm"
@@ -624,7 +642,7 @@ export default function ChatPage() {
             <form onSubmit={onSubmitForm} className="max-w-4xl mx-auto relative">
               <div className="flex items-center bg-[#1d1f29] border border-[#434656] rounded-xl shadow-sm focus-within:border-[#b7c4ff] focus-within:ring-1 focus-within:ring-[#b7c4ff] transition-all overflow-hidden p-1">
                 <ChevronRight className="w-6 h-6 text-[#b7c4ff] ml-3 mr-1 shrink-0" />
-                <textarea 
+                <textarea
                   data-testid="chat-input"
                   ref={chatInputRef}
                   value={input}
@@ -643,16 +661,16 @@ export default function ChatPage() {
                   }}
                   rows={1}
                   disabled={isLoading || isUploading}
-                  placeholder="Enter command..." 
+                  placeholder="Enter command..."
                   className="flex-1 bg-transparent border-none focus:ring-0 text-[#e1e1ef] text-sm placeholder:text-[#c3c5d9]/50 py-3 min-w-0 focus:outline-none disabled:opacity-50 resize-none custom-scrollbar leading-relaxed"
                   autoComplete="off"
                 />
-                
+
                 <input type="file" accept=".pdf" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
 
                 <div className="flex items-center space-x-1 pr-2 shrink-0">
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploading}
                     className={`p-2 transition-colors rounded-full ${activeFilename ? 'text-[#0052ff] bg-[#0052ff]/10 hover:bg-[#0052ff]/20' : 'text-[#8d90a2] hover:text-[#b7c4ff] hover:bg-[#282934]'}`}
@@ -664,7 +682,7 @@ export default function ChatPage() {
                       <Paperclip className="w-5 h-5" />
                     )}
                   </button>
-                  <button 
+                  <button
                     data-testid="send-button"
                     type="submit"
                     disabled={!input.trim() || isLoading || isUploading}
@@ -679,10 +697,10 @@ export default function ChatPage() {
           </div>
         </div>
       </main>
-      
+
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-30 md:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />

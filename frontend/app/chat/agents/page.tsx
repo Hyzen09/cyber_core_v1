@@ -10,6 +10,7 @@ export default function AgentsPage() {
   const router = useRouter();
   const [agents, setAgents] = useState<any[]>([]);
   const [userName, setUserName] = useState<string>('Loading...');
+  const [userId, setUserId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
 
   const handleDeleteAgent = async (e: React.MouseEvent, agentId: string, agentName: string) => {
@@ -41,11 +42,12 @@ export default function AgentsPage() {
       const meta = user.user_metadata;
       const display = meta?.username || meta?.full_name || meta?.name || user.email?.split('@')[0] || 'User';
       setUserName(display);
+      setUserId(user.id);
       
       const { data: agentsData, error: agentsError } = await supabase
         .from('agents')
         .select('*')
-        .eq('user_id', user.id)
+        .or(`user_id.eq.${user.id},is_public.eq.true`)
         .order('created_at', { ascending: false });
         
       if (!agentsError && agentsData) {
@@ -98,21 +100,28 @@ export default function AgentsPage() {
                 <div key={agent.id} className="bg-[#1d1f29] border border-[#434656] rounded-xl p-6 hover:border-[#b7c4ff] hover:bg-[#282934] transition-all group shadow-sm flex flex-col">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-[#0052ff]/10 flex items-center justify-center border border-[#0052ff]/30 group-hover:bg-[#0052ff] group-hover:text-white transition-colors">
+                      <div className="w-10 h-10 rounded-full bg-[#0052ff]/10 flex items-center justify-center border border-[#0052ff]/30 group-hover:bg-[#0052ff] group-hover:text-white transition-colors relative">
                         <Cpu className="w-5 h-5 text-[#0052ff] group-hover:text-white" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-[#e1e1ef] uppercase tracking-wide">{agent.name}</h3>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="font-bold text-[#e1e1ef] uppercase tracking-wide">{agent.name}</h3>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold tracking-widest ${agent.is_public ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'}`}>
+                            {agent.is_public ? 'PUBLIC' : 'PRIVATE'}
+                          </span>
+                        </div>
                         <p className="text-xs font-bold tracking-widest text-[#0052ff]">STATUS: {agent.status.toUpperCase()}</p>
                       </div>
                     </div>
-                    <button 
-                      onClick={(e) => handleDeleteAgent(e, agent.id, agent.name)}
-                      className="text-[#8d90a2] hover:text-[#ffb4ab] transition-colors p-1 z-10" 
-                      title="Delete Agent"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {agent.user_id === userId && (
+                      <button 
+                        onClick={(e) => handleDeleteAgent(e, agent.id, agent.name)}
+                        className="text-[#8d90a2] hover:text-[#ffb4ab] transition-colors p-1 z-10" 
+                        title="Delete Agent"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                   
                   <div className="space-y-3 flex-1">

@@ -13,6 +13,7 @@ export default function CreateAgentPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,6 +67,7 @@ export default function CreateAgentPage() {
       formData.append('description', description);
       formData.append('prompt', prompt);
       formData.append('user_id', user.id);
+      formData.append('is_public', isPublic.toString());
       formData.append('file', file);
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -128,6 +130,34 @@ export default function CreateAgentPage() {
             </div>
 
             <div className="space-y-2">
+              <label htmlFor="prompt" className="block text-xs font-bold tracking-widest text-[#c3c5d9] uppercase">
+                System Prompt (Directives)
+              </label>
+              <textarea
+                id="prompt"
+                required
+                rows={5}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="w-full bg-[#11131c] border border-[#434656] rounded-xl px-4 py-3 text-sm text-[#e1e1ef] focus:outline-none focus:border-[#b7c4ff] focus:ring-1 focus:ring-[#b7c4ff] transition-all resize-none placeholder:text-[#c3c5d9]/50"
+                placeholder="You are a strict code reviewer. Always respond in JSON format..."
+              />
+            </div>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <input
+                id="isPublic"
+                type="checkbox"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+                className="w-5 h-5 rounded border-[#434656] bg-[#11131c] text-[#0052ff] focus:ring-[#0052ff] focus:ring-offset-[#1d1f29] transition-colors cursor-pointer"
+              />
+              <label htmlFor="isPublic" className="text-sm font-bold tracking-wider text-[#e1e1ef] cursor-pointer">
+                MAKE IT PUBLIC <span className="text-[#c3c5d9] font-normal text-xs ml-2 tracking-normal">(Visible to all users on the network)</span>
+              </label>
+            </div>
+
+            <div className="space-y-2 pt-4">
               <label htmlFor="description" className="block text-xs font-bold tracking-widest text-[#c3c5d9] uppercase">
                 Short Description
               </label>
@@ -140,21 +170,6 @@ export default function CreateAgentPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full bg-[#11131c] border border-[#434656] rounded-xl px-4 py-3 text-sm text-[#e1e1ef] focus:outline-none focus:border-[#b7c4ff] focus:ring-1 focus:ring-[#b7c4ff] transition-all placeholder:text-[#c3c5d9]/50"
                 placeholder="e.g. Expert in identifying malware and network intrusions."
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="prompt" className="block text-xs font-bold tracking-widest text-[#c3c5d9] uppercase">
-                System Prompt (Directives)
-              </label>
-              <textarea
-                id="prompt"
-                required
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                rows={5}
-                className="w-full bg-[#11131c] border border-[#434656] rounded-xl px-4 py-3 text-sm text-[#e1e1ef] focus:outline-none focus:border-[#b7c4ff] focus:ring-1 focus:ring-[#b7c4ff] transition-all placeholder:text-[#c3c5d9]/50 resize-none custom-scrollbar"
-                placeholder="You are an expert cybersecurity analyst. Your primary directive is to..."
               />
             </div>
 

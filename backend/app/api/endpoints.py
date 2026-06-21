@@ -33,14 +33,17 @@ async def create_agent_route(
     description: str = Form(...),
     prompt: str = Form(...),
     user_id: str = Form(...),
+    is_public: str = Form("false"),
     file: UploadFile = File(...)
 ):
     try:
+        is_public_bool = is_public.lower() == "true"
         agent_data = {
             "name": name,
             "description": description,
             "prompt": prompt,
             "user_id": user_id,
+            "is_public": is_public_bool,
             "status": "Active"
         }
         res = supabase.table("agents").insert(agent_data).execute()
