@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     } else {
       llm = new ChatOllama({
         model: 'qwen2.5-coder:1.5b',
-        baseUrl: 'http://127.0.0.1:11434',
+        baseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
         temperature: 0.2,
       });
     }
