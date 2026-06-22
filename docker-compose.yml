@@ -10,6 +10,9 @@ services:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file:
       - ./backend/.env
     depends_on:
@@ -35,6 +38,9 @@ services:
       args:
         NEXT_PUBLIC_SUPABASE_URL: "https://zuswmcqwudybxbpxcoaw.supabase.co"
         NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_tE5-ptTYbqH2Q9s87JvQiQ_P8HNltYq"
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     container_name: cyber_core_frontend
     ports:
       - "3000:3000"
