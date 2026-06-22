@@ -47,6 +47,7 @@ services:
     environment:
       - HOSTNAME=0.0.0.0
       - PORT=3000
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
     depends_on:
       - backend
     networks:
