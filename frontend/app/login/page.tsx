@@ -35,7 +35,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || window.location.origin}/chat`,
+        redirectTo: `${window.location.protocol}//${window.location.host}/chat`,
       }
     }); 
 
