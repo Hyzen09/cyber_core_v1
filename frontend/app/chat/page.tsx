@@ -333,17 +333,20 @@ export default function ChatPage() {
     setMessages([...newMessages, { id: assistantMessageId, role: 'assistant', content: '...' }]);
 
     try {
+      // ... existing code above ...
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: user?.id || 'anonymous',
+          userId: user?.id || 'anonymous',   // ✅ Matches backend 'userId'
           session_id: activeChatId,
-          message: userMessage.content,
+          messages: newMessages,             // ✅ THE FIX: Passes the full array of chat history
+          modelType: selectedModel,          // ✅ Tells backend to use local vs gemini
           filename: activeFilename,
           agent_id: currentAgentId
         }),
       });
+      // ... existing code below ...
 
       if (!response.ok) {
         const errorDetail = await response.text();
