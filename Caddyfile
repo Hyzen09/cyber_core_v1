@@ -1,11 +1,6 @@
-# Cyber Core V1 Caddy Configuration
-# This file automatically provisions HTTPS if a public domain is used, 
-# or uses local certificates if testing on localhost.
-
-{$DOMAIN:localhost} {
+# Listen on standard HTTP (Port 80) for any incoming IP address
+:80 {
     # 1. Backend Routes (FastAPI)
-    # The backend handles PDF processing and agent creation.
-    # We do NOT strip the path because FastAPI expects the full /api/... path
     handle /api/upload-pdf* {
         reverse_proxy backend:8000
     }
@@ -15,8 +10,6 @@
     }
 
     # 2. Frontend Routes (Next.js)
-    # Next.js handles the UI and the streaming /api/chat endpoint
-    # Everything that isn't caught by the backend routes falls through to Next.js
     handle {
         reverse_proxy frontend:3000
     }
