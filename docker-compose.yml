@@ -54,6 +54,7 @@ services:
       - HOSTNAME=0.0.0.0
       - PORT=3000
       - OLLAMA_BASE_URL=http://ollama:11434
+      - NEXT_PUBLIC_SITE_URL=http://13.203.92.73
     depends_on:
       - backend
     networks:
