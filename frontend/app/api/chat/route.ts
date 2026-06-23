@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { ChatOllama } from '@langchain/ollama';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
+import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
 import { createClient } from '@supabase/supabase-js';
 
 // 1. FIX: Removed the 'edge' runtime so this runs securely on the native Node.js Docker environment
@@ -52,10 +52,10 @@ export async function POST(req: NextRequest) {
     ${markdownContext}`;
 
     // 3. FORMAT MESSAGES FOR LANGCHAIN
-    const formattedMessages = messages.map((m: any) => 
+    const formattedMessages: BaseMessage[] = messages.map((m: any) => 
       m.role === 'user' ? new HumanMessage(m.content) : new AIMessage(m.content)
     );
-    
+
     formattedMessages.unshift(new SystemMessage(systemPrompt));
 
     // 4. ROUTE TO THE CORRECT MODEL
