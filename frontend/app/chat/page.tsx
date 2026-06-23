@@ -330,23 +330,21 @@ export default function ChatPage() {
     setIsLoading(true);
 
     const assistantMessageId = (Date.now() + 1).toString();
-    setMessages([...newMessages, { id: assistantMessageId, role: 'assistant', content: '...' }]);
+    setMessages([...newMessages, { id: assistantMessageId, role: 'assistant', content: '' }]); // Start empty for streaming
 
     try {
-      // ... existing code above ...
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user?.id || 'anonymous',   // ✅ Matches backend 'userId'
+          userId: user?.id || 'anonymous',
           session_id: activeChatId,
-          messages: newMessages,             // ✅ THE FIX: Passes the full array of chat history
-          modelType: selectedModel,          // ✅ Tells backend to use local vs gemini
+          messages: newMessages,             
+          modelType: selectedModel,          
           filename: activeFilename,
           agent_id: currentAgentId
         }),
       });
-      // ... existing code below ...
 
       if (!response.ok) {
         const errorDetail = await response.text();
@@ -354,19 +352,34 @@ export default function ChatPage() {
         throw new Error(`API returned status ${response.status}: ${errorDetail}`);
       }
 
-      const data = await response.json();
-      console.log("Backend Response payload:", data);
+      // ✅ NEW STREAMING LOGIC
+      if (!response.body) throw new Error("No response body returned from core.");
+      
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let fullAssistantResponse = '';
 
-      const fullAssistantResponse = data.answer;
+      // Read the stream chunk-by-chunk as the AI generates it
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        // Decode the binary chunk into text
+        const chunkText = decoder.decode(value, { stream: true });
+        fullAssistantResponse += chunkText;
 
-      setMessages((prev) => prev.map((msg) => msg.id === assistantMessageId ? { ...msg, content: fullAssistantResponse } : msg));
-
-      // Map parsed suggestions from backend
-      if (data.suggestions && Array.isArray(data.suggestions)) {
-        setSuggestions(data.suggestions);
-      } else {
-        setSuggestions([]);
+        // Instantly update the UI so the user sees the text typing out
+        setMessages((prev) => 
+          prev.map((msg) => 
+            msg.id === assistantMessageId 
+              ? { ...msg, content: fullAssistantResponse } 
+              : msg
+          )
+        );
       }
+
+      // Clear suggestions since the streaming backend doesn't output a JSON array for them
+      setSuggestions([]);
 
     } catch (error: any) {
       console.error("Chat Error:", error);
