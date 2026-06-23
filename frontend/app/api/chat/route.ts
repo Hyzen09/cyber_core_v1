@@ -14,7 +14,19 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, modelType, userId } = await req.json();
+    const body = await req.json();
+    console.log("RECEIVED PAYLOAD:", body); // Logs exactly what the frontend sent to Docker
+
+    const { messages, modelType, userId } = body;
+
+    // 🛡️ NEW VALIDATION ARMOR: Prevents the '.map() of undefined' crash
+    if (!messages || !Array.isArray(messages)) {
+      console.error("Validation Error: 'messages' array is missing or invalid in payload.");
+      return new Response(
+        JSON.stringify({ error: 'Bad Request: Missing or invalid messages array' }), 
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     // 1. FETCH THE MARKDOWN FILES FROM SUPABASE
     let markdownContext = "";
@@ -63,7 +75,7 @@ export async function POST(req: NextRequest) {
     }
     
     if (!llm) { 
-      return new Response(JSON.stringify({ error: 'Model not found' }), { status: 500 });
+      return new Response(JSON.stringify({ error: 'Model not found' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
 
     // 5. STREAM THE RESPONSE
@@ -89,6 +101,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('API Error:', error);
-    return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
+    return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
