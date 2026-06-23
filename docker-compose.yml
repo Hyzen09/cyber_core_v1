@@ -17,6 +17,7 @@ services:
       - OLLAMA_BASE_URL=http://ollama:11434
       # Update this to your real domain name when ready
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://yourdomain.com} 
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     env_file:
       - ./backend/.env
     depends_on:
