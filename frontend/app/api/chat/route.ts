@@ -35,8 +35,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. CONFIGURE THE CYBERPUNK SYSTEM PROMPT
-    const systemPrompt = `You are CYBER_CORE_V1, a highly advanced, brutally efficient Cyberpunk AI Terminal assistant. 
-    Your tone is technical, sharp, and data-driven. Do not use pleasantries. Output data clearly.
+    const systemPrompt = `You are a highly advanced, brutally efficient assistant. 
+    Your tone is informative, sharp, and data-driven. Do use pleasantries. Output data clearly.
     ${markdownContext}`;
 
     // 3. FORMAT MESSAGES FOR LANGCHAIN
@@ -61,6 +61,10 @@ export async function POST(req: NextRequest) {
         baseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
         temperature: 0.2,
       });
+    }
+    
+    if (!llm) { 
+      return new Response(JSON.stringify({ error: 'Model not found' }), { status: 500 });
     }
 
     // 5. STREAM THE RESPONSE
