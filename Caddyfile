@@ -1,5 +1,4 @@
-# Listen on standard HTTP (Port 80) for any incoming IP address
-:80 {
+http://13.203.92.73 {
     # 1. Backend Routes (FastAPI)
     handle /api/upload-pdf* {
         reverse_proxy backend:8000
