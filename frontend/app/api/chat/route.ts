@@ -4,7 +4,8 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import { createClient } from '@supabase/supabase-js';
 
-export const runtime = 'edge';
+// 1. FIX: Removed the 'edge' runtime so this runs securely on the native Node.js Docker environment
+export const runtime = 'nodejs';
 
 // Initialize Supabase to fetch the Markdown files
 const supabaseUrl = 'https://zuswmcqwudybxbpxcoaw.supabase.co';
@@ -18,7 +19,6 @@ export async function POST(req: NextRequest) {
     // 1. FETCH THE MARKDOWN FILES FROM SUPABASE
     let markdownContext = "";
     if (userId) {
-      // Get the 3 most recently uploaded document summaries for this user
       const { data: summaries } = await supabase
         .from('document_summaries')
         .select('filename, markdown_content')
@@ -44,7 +44,6 @@ export async function POST(req: NextRequest) {
       m.role === 'user' ? new HumanMessage(m.content) : new AIMessage(m.content)
     );
     
-    // Inject the Markdown Context at the very beginning of the AI's memory
     formattedMessages.unshift(new SystemMessage(systemPrompt));
 
     // 4. ROUTE TO THE CORRECT MODEL
@@ -79,8 +78,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // 2. FIX: Added crucial headers to bypass Next.js compression and explicitly allow chunked streaming
     return new Response(customStream, {
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      headers: { 
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive'
+      },
     });
 
   } catch (error) {
