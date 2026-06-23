@@ -276,8 +276,7 @@ export default function ChatPage() {
     formData.append('session_id', activeChatId as string);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const response = await fetch(`${apiUrl}/api/upload-pdf`, { method: 'POST', body: formData });
+      const response = await fetch('/api/upload-pdf', { method: 'POST', body: formData });
       if (!response.ok) throw new Error('Upload Failed');
       const data = await response.json();
 
@@ -334,8 +333,7 @@ export default function ChatPage() {
     setMessages([...newMessages, { id: assistantMessageId, role: 'assistant', content: '...' }]);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const response = await fetch(`${apiUrl}/api/chat`, {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
