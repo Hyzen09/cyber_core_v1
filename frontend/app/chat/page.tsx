@@ -352,23 +352,20 @@ export default function ChatPage() {
         throw new Error(`API returned status ${response.status}: ${errorDetail}`);
       }
 
-      // ✅ NEW STREAMING LOGIC
+      // Read the response stream chunk-by-chunk for the typewriter effect
       if (!response.body) throw new Error("No response body returned from core.");
       
       const reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
       let fullAssistantResponse = '';
 
-      // Read the stream chunk-by-chunk as the AI generates it
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
-        // Decode the binary chunk into text
         const chunkText = decoder.decode(value, { stream: true });
         fullAssistantResponse += chunkText;
 
-        // Instantly update the UI so the user sees the text typing out
         setMessages((prev) => 
           prev.map((msg) => 
             msg.id === assistantMessageId 

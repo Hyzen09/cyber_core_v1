@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     console.log("RECEIVED PAYLOAD:", body); // Logs exactly what the frontend sent to Docker
 
-    const { messages, modelType, userId } = body;
+    const { messages, modelType, userId, session_id } = body;
 
     // 🛡️ NEW VALIDATION ARMOR: Prevents the '.map() of undefined' crash
     if (!messages || !Array.isArray(messages)) {
@@ -26,6 +26,13 @@ export async function POST(req: NextRequest) {
         JSON.stringify({ error: 'Bad Request: Missing or invalid messages array' }), 
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Save the user's message to Supabase
+    const lastMessage = messages[messages.length - 1];
+    if (session_id && lastMessage && lastMessage.role === 'user') {
+      const { error } = await supabase.from('messages').insert([{ chat_id: session_id, role: 'user', content: lastMessage.content }]);
+      if (error) console.error("Error saving user message:", error);
     }
 
     // 1. FETCH THE MARKDOWN FILES FROM SUPABASE
@@ -47,8 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. CONFIGURE THE CYBERPUNK SYSTEM PROMPT
-    const systemPrompt = `You are a highly advanced, brutally efficient assistant. 
-    Your tone is informative, sharp, and data-driven. Do use pleasantries. Output data clearly.
+    const systemPrompt = `you are a profectional assistant, and can take on persnality of a agent if used
     ${markdownContext}`;
 
     // 3. FORMAT MESSAGES FOR LANGCHAIN
@@ -81,11 +87,19 @@ export async function POST(req: NextRequest) {
     // 5. STREAM THE RESPONSE
     const stream = await llm.stream(formattedMessages);
     const encoder = new TextEncoder();
+    let fullAssistantResponse = '';
     const customStream = new ReadableStream({
       async start(controller) {
         for await (const chunk of stream) {
+          fullAssistantResponse += chunk.text;
           controller.enqueue(encoder.encode(chunk.text));
         }
+        
+        if (session_id && fullAssistantResponse) {
+          const { error } = await supabase.from('messages').insert([{ chat_id: session_id, role: 'assistant', content: fullAssistantResponse }]);
+          if (error) console.error("Error saving assistant message:", error);
+        }
+        
         controller.close();
       },
     });
