@@ -14,6 +14,8 @@ services:
     environment:
       # ADDED https:// 
       - NEXT_PUBLIC_API_URL=https://cyber-studio.duckdns.org/api 
+    env_file:
+      - ./frontend/.env
     networks:
       - cyber_net
 
