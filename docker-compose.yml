@@ -12,7 +12,8 @@ services:
       # Binds strictly to localhost:3000 on the host machine
       - "127.0.0.1:3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=cyber-studio.duckdns.org/api # Update this once you have a domain
+      # ADDED https:// 
+      - NEXT_PUBLIC_API_URL=https://cyber-studio.duckdns.org/api 
     networks:
       - cyber_net
 
