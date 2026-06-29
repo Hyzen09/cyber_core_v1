@@ -1,102 +1,52 @@
 version: '3.8'
 
 services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: cyber_core_backend
-    # Changed 'ports' to 'expose'. This hides the port from the public internet, 
-    # but still allows Caddy to route traffic to it internally.
-    expose:
-      - "8000"
-    environment:
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      # Updated to talk directly to the new Ollama container
-      - OLLAMA_BASE_URL=http://ollama:11434
-      # Update this to your real domain name when ready
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://yourdomain.com} 
-    env_file:
-      - ./backend/.env
-    depends_on:
-      - qdrant
-      - ollama
-    networks:
-      - cyber_net
-
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: cyber_core_qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - ./qdrant_storage:/qdrant/storage:z
-    networks:
-      - cyber_net
-
+  # 1. The Next.js Frontend
   frontend:
-    build:
+    build: 
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_SUPABASE_URL: "https://zuswmcqwudybxbpxcoaw.supabase.co"
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_tE5-ptTYbqH2Q9s87JvQiQ_P8HNltYq"
-        # Uses the secure Caddy proxy root. 
-        # Leave empty locally or set to https://yourdomain.com in production
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
-    container_name: cyber_core_frontend
-    # Changed 'ports' to 'expose' to force users to use HTTPS via Caddy
-    expose:
-      - "3000"
+    container_name: cyber_frontend
+    restart: always
+    ports:
+      # Binds strictly to localhost:3000 on the host machine
+      - "127.0.0.1:3000:3000"
     environment:
-      - HOSTNAME=0.0.0.0
-      - PORT=3000
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - NEXT_PUBLIC_SITE_URL=http://13.203.92.73
-    depends_on:
-      - backend
+      - NEXT_PUBLIC_API_URL=cyber-studio.duckdns.org/api # Update this once you have a domain
     networks:
       - cyber_net
 
-  # NEW: Integrated Ollama Service
-  ollama:
-    image: ollama/ollama:latest
-    container_name: cyber_core_ollama
-    restart: unless-stopped
+  # 2. The FastAPI Backend
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cyber_backend
+    restart: always
     ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
+      # Binds strictly to localhost:8000 on the host machine
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - ./backend/.env
     networks:
       - cyber_net
 
-  # NEW: Caddy Reverse Proxy for automatic HTTPS
-  caddy:
-    image: caddy:2-alpine
-    container_name: cyber_core_caddy
-    restart: unless-stopped
+  # 3. Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: cyber_qdrant
+    restart: always
     ports:
-      - "80:80"     # Required for Let's Encrypt validation
-      - "443:443"   # Standard HTTPS port
+      # Internal database, only accessible locally
+      - "127.0.0.1:6333:6333"
     volumes:
-      # This links to the Caddyfile you need to create
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - frontend
-      - backend
+      - qdrant_data:/qdrant/storage
     networks:
       - cyber_net
+
+volumes:
+  qdrant_data:
 
 networks:
   cyber_net:
     driver: bridge
-
-# Added volumes to persist your SSL certificates and downloaded AI models
-volumes:
-  caddy_data:
-  caddy_config:
-  ollama_data:

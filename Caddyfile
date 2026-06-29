@@ -1,18 +1,18 @@
-http://13.203.92.73 {
+cyber-studio.duckdns.org {
     # 1. Heavy-Lifting Routes -> Python Backend (FastAPI)
     handle /api/upload-pdf* {
-        reverse_proxy backend:8000
+        reverse_proxy 127.0.0.1:8000
     }
 
     handle /api/agents* {
-        reverse_proxy backend:8000
+        reverse_proxy 127.0.0.1:8000
     }
 
     # 2. UI & Chat Streaming -> Next.js Frontend
     # This catches the main website AND your /api/chat route
     handle {
-        reverse_proxy frontend:3000 {
-            # This is the magic command for LangChain! 
+        reverse_proxy 127.0.0.1:3000 {
+            # This is the magic command for LangChain!
             # It tells Caddy NOT to buffer the AI's response, 
             # allowing Next.js to stream text word-by-word instantly.
             flush_interval -1
