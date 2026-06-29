@@ -12,7 +12,6 @@ services:
       # Binds strictly to localhost:3000 on the host machine
       - "127.0.0.1:3000:3000"
     environment:
-      # ADDED https:// 
       - NEXT_PUBLIC_API_URL=https://cyber-studio.duckdns.org/api 
     env_file:
       - ./frontend/.env
@@ -46,6 +45,34 @@ services:
       - qdrant_data:/qdrant/storage
     networks:
       - cyber_net
+
+  # 4. Ollama LLM Server
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cyber_core_ollama
+    restart: always
+    ports:
+      # SECURED: Bound strictly to localhost so the outside internet cannot access your models
+      - "127.0.0.1:11434:11434"
+    volumes:
+      # Persistent storage for downloaded LLM weights
+      - ./ollama_storage:/root/.ollama
+    networks:
+      - cyber_net
+
+  # 5. Ollama Model Puller (Auto-Initialization)
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: cyber_ollama_pull
+    depends_on:
+      - ollama
+    networks:
+      - cyber_net
+    entrypoint: /bin/sh
+    # Waits 5 seconds for the main server to start, then downloads the models
+    command: -c "sleep 5 && ollama pull nomic-embed-text && ollama pull qwen2.5-coder:1.5b"
+    environment:
+      - OLLAMA_HOST=ollama:11434
 
 volumes:
   qdrant_data:
