@@ -10,7 +10,7 @@ export default function WelcomePage() {
       <div className="relative z-10 max-w-md w-full text-center space-y-8">
         <div className="space-y-4">
           <h1 className="text-5xl font-bold text-white tracking-tight">
-            Local Qwen <span className="text-blue-500">Studio</span>
+            cyber_core <span className="text-blue-500">Studio</span>
           </h1>
           <p className="text-neutral-400 text-lg">
             Your private, locally hosted AI workspace. Log in to access your secure chat history.

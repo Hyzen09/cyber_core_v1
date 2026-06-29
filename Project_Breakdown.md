@@ -69,7 +69,38 @@ It also includes a **module-wise mind plan** for extending the application with 
 
 ---
 
-## 3. Module-Wise Mind Plan: Extending the Application
+## 3. Routes & API Endpoints Mapping
+
+This section maps out the network routes, detailing which endpoint hits which service, and highlights any hardcoded IPs or domains that drive the application.
+
+### A. Proxied via Caddy (Entry Point: `http://13.203.92.73`)
+Caddy serves as the main reverse proxy. The hardcoded IP acting as the public entry point in `Caddyfile` and `docker-compose.yml` (`NEXT_PUBLIC_SITE_URL`) is **`13.203.92.73`**.
+
+*   **`POST /api/upload-pdf`**
+    *   **Routed to:** Python Backend (`backend:8000/api/upload-pdf`)
+    *   **Function:** Handles PDF uploads, runs OCR/text extraction, generates summaries, and stores document chunk embeddings in Qdrant.
+*   **`POST /api/agents`**
+    *   **Routed to:** Python Backend (`backend:8000/api/agents`)
+    *   **Function:** Creates a custom AI agent configuration in Supabase and processes its associated knowledge base file.
+*   **`POST /api/chat`**
+    *   **Routed to:** Next.js Frontend API (`frontend:3000/api/chat`) handled by `app/api/chat/route.ts`
+    *   **Function:** Next.js API route that interacts with the LLMs (Ollama/Gemini) using LangChain. It uses Server-Sent Events to stream responses directly to the client. *(Note: There is also a `/api/chat` route defined in the Python backend, but Caddy routes this traffic to the frontend to enable real-time UI streaming.)*
+*   **All other routes (`/*`)**
+    *   **Routed to:** Next.js Frontend (`frontend:3000`)
+    *   **Function:** Serves the UI pages (e.g., `/`, `/chat`, `/login`).
+
+### B. Internal & External Service URLs
+*   **Supabase Database & Auth:**
+    *   Hardcoded in `frontend/app/api/chat/route.ts` and set in `docker-compose.yml`: `https://zuswmcqwudybxbpxcoaw.supabase.co`.
+*   **Ollama (Local LLM Provider):**
+    *   Internal Docker network URL: `http://ollama:11434` (used by both backend and frontend).
+    *   Fallback URL in Next.js `route.ts`: `http://127.0.0.1:11434`.
+*   **Qdrant (Vector Database):**
+    *   Internal Docker network hostname: `qdrant` on port `6333` (communicated by the Python backend).
+
+---
+
+## 4. Module-Wise Mind Plan: Extending the Application
 
 To advance your skills as a Next.js developer, here is a structured, module-wise roadmap for the new features and concepts we will introduce to this application next:
 

@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from app.models import ChatRequest
 from app.core.database import supabase
 from app.core.vector_store import qdrant, models
-from app.services.model_config import chat_model, embeddings_model
+from app.services.model_config import chat_model, gemini_chat_model, embeddings_model
 
 async def generate_chat_response(request: ChatRequest):
     history_response = supabase.table("messages") \
@@ -16,6 +16,10 @@ async def generate_chat_response(request: ChatRequest):
     chat_history = history_response.data
     formatted_history = "\n".join([f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history]) if chat_history else "No previous conversation."
 
+    active_model = chat_model
+    if getattr(request, "modelType", "local") == "gemini" and gemini_chat_model:
+        active_model = gemini_chat_model
+
     standalone_query = request.message
     if chat_history:
         reformulation_prompt = f"""Given the following conversation history and the user's new question, rephrase the question to be a standalone query that contains all necessary context. Do not answer the question, just reformulate it.
@@ -26,7 +30,7 @@ async def generate_chat_response(request: ChatRequest):
         New Question: {request.message}
         Standalone Question:"""
         
-        reformulation_response = await chat_model.ainvoke(reformulation_prompt)
+        reformulation_response = await active_model.ainvoke(reformulation_prompt)
         standalone_query = reformulation_response.content.strip()
 
     agent_prompt = None
@@ -75,30 +79,31 @@ async def generate_chat_response(request: ChatRequest):
     final_context = document_summary + "--- Specific Document Chunks ---\n" + (retrieved_context if retrieved_context else "No specific chunks matched.")
 
     system_instruction = agent_prompt if agent_prompt else "You are an intuitive, engaging, and articulate AI assistant. Your goal is to answer the user's question by seamlessly weaving together information from the retrieved context."
-    final_prompt = f"""{system_instruction}
-
-    CRITICAL GUIDELINES FOR YOUR RESPONSE:
-    - Talk like a human expert. Do not copy-paste chunks verbatim. Synthesize facts into a smooth, natural flow.
-    - Structure your response cleanly using markdown (bolding, clear lists, short paragraphs).
-    - If the retrieved context doesn't contain the answer, gracefully let the user know without guessing.
-    - Do not add text "Suggested Prompts:" in your response 
     
-    SUGGESTION REQUIREMENT (CRITICAL):
-    You must generate 2 to 3 suggested prompts that the USER can click to ask YOU next, based on the document's content.
+    system_message_content = f"""{system_instruction}
+
+CRITICAL GUIDELINES FOR YOUR RESPONSE:
+- Talk like a human expert. Do not copy-paste chunks verbatim. Synthesize facts into a smooth, natural flow.
+- Structure your response cleanly using markdown (bolding, clear lists, short paragraphs).
+- If the retrieved context doesn't contain the answer, gracefully let the user know without guessing.
+
+Retrieved Document Context:
+{final_context}"""
+
+    from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
     
-    You MUST wrap these suggested user prompts strictly inside <suggestions> and </suggestions> XML tags. 
-    Place each prompt on a new line. Do NOT use numbers or bullet points.
+    messages = [SystemMessage(content=system_message_content)]
+    
+    if chat_history:
+        for msg in chat_history:
+            if msg['role'] == 'user':
+                messages.append(HumanMessage(content=msg['content']))
+            elif msg['role'] == 'assistant':
+                messages.append(AIMessage(content=msg['content']))
+                
+    messages.append(HumanMessage(content=request.message))
 
-    Retrieved Document Context:
-    {final_context}
-
-    Conversation History:
-    {formatted_history}
-
-    User Question: {request.message}
-    Answer:"""
-
-    final_response = await chat_model.ainvoke(final_prompt)
+    final_response = await active_model.ainvoke(messages)
     raw_content = final_response.content
 
     ai_answer = raw_content

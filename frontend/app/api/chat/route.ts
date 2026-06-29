@@ -1,110 +1,65 @@
 import { NextRequest } from 'next/server';
-import { ChatOllama } from '@langchain/ollama';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
-import { createClient } from '@supabase/supabase-js';
 
-// 1. FIX: Removed the 'edge' runtime so this runs securely on the native Node.js Docker environment
 export const runtime = 'nodejs';
-
-// Initialize Supabase to fetch the Markdown files
-const supabaseUrl = 'https://zuswmcqwudybxbpxcoaw.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'PASTE_YOUR_SERVICE_KEY_HERE_IF_NO_ENV_FILE';
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    console.log("RECEIVED PAYLOAD:", body); // Logs exactly what the frontend sent to Docker
+    console.log("RECEIVED PAYLOAD IN NEXT.JS:", body);
 
-    const { messages, modelType, userId, session_id } = body;
+    const { messages, modelType, userId, session_id, agent_id } = body;
 
-    // 🛡️ NEW VALIDATION ARMOR: Prevents the '.map() of undefined' crash
-    if (!messages || !Array.isArray(messages)) {
-      console.error("Validation Error: 'messages' array is missing or invalid in payload.");
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(
         JSON.stringify({ error: 'Bad Request: Missing or invalid messages array' }), 
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // Save the user's message to Supabase
     const lastMessage = messages[messages.length - 1];
-    if (session_id && lastMessage && lastMessage.role === 'user') {
-      const { error } = await supabase.from('messages').insert([{ chat_id: session_id, role: 'user', content: lastMessage.content }]);
-      if (error) console.error("Error saving user message:", error);
-    }
 
-    // 1. FETCH THE MARKDOWN FILES FROM SUPABASE
-    let markdownContext = "";
-    if (userId) {
-      const { data: summaries } = await supabase
-        .from('document_summaries')
-        .select('filename, markdown_content')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(3);
-
-      if (summaries && summaries.length > 0) {
-        markdownContext = "\n\nCRITICAL CONTEXT - You have access to the following Markdown (.md) reference files extracted from the user's documents. Use this information to answer their queries with extreme accuracy:\n\n";
-        summaries.forEach(doc => {
-          markdownContext += `=== START OF FILE: ${doc.filename} ===\n${doc.markdown_content}\n=== END OF FILE ===\n\n`;
-        });
-      }
-    }
-
-    // 2. CONFIGURE THE CYBERPUNK SYSTEM PROMPT
-    const systemPrompt = `you are a profectional assistant, and can take on persnality of a agent if used
-    ${markdownContext}`;
-
-    // 3. FORMAT MESSAGES FOR LANGCHAIN
-    const formattedMessages: BaseMessage[] = messages.map((m: any) => 
-      m.role === 'user' ? new HumanMessage(m.content) : new AIMessage(m.content)
-    );
-
-    formattedMessages.unshift(new SystemMessage(systemPrompt));
-
-    // 4. ROUTE TO THE CORRECT MODEL
-    let llm;
-    if (modelType === 'gemini') {
-      llm = new ChatGoogleGenerativeAI({
-        model: 'gemini-2.5-flash',
-        temperature: 0.2,
-        apiKey: process.env.GEMINI_API_KEY,
-      });
-    } else {
-      llm = new ChatOllama({
-        model: 'qwen2.5-coder:1.5b',
-        baseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
-        temperature: 0.2,
-      });
-    }
+    // Forward the request to the Python backend which handles Qdrant RAG, Agents, and LLM (Gemini/Ollama)
+    const backendUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/chat`;
     
-    if (!llm) { 
-      return new Response(JSON.stringify({ error: 'Model not found' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    const pythonResponse = await fetch(backendUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId || 'anonymous',
+        session_id: session_id || 'default_session',
+        message: lastMessage.content,
+        modelType: modelType || 'local',
+        agent_id: agent_id || null
+      })
+    });
+
+    if (!pythonResponse.ok) {
+      const errorText = await pythonResponse.text();
+      console.error("Backend Error:", errorText);
+      return new Response(JSON.stringify({ error: `Backend Error: ${errorText}` }), { status: pythonResponse.status });
     }
 
-    // 5. STREAM THE RESPONSE
-    const stream = await llm.stream(formattedMessages);
+    const data = await pythonResponse.json();
+    const answer = data.answer || "I'm sorry, I couldn't generate a response.";
+
+    // Fake the streaming effect so the UI types it out smoothly
     const encoder = new TextEncoder();
-    let fullAssistantResponse = '';
     const customStream = new ReadableStream({
       async start(controller) {
-        for await (const chunk of stream) {
-          fullAssistantResponse += chunk.text;
-          controller.enqueue(encoder.encode(chunk.text));
+        // Stream chunk by chunk (e.g. 15 characters at a time)
+        const chunkSize = 15;
+        for (let i = 0; i < answer.length; i += chunkSize) {
+          const chunk = answer.slice(i, i + chunkSize);
+          controller.enqueue(encoder.encode(chunk));
+          // Delay to simulate typing speed
+          await new Promise(r => setTimeout(r, 15));
         }
-        
-        if (session_id && fullAssistantResponse) {
-          const { error } = await supabase.from('messages').insert([{ chat_id: session_id, role: 'assistant', content: fullAssistantResponse }]);
-          if (error) console.error("Error saving assistant message:", error);
-        }
-        
         controller.close();
       },
     });
 
-    // 2. FIX: Added crucial headers to bypass Next.js compression and explicitly allow chunked streaming
     return new Response(customStream, {
       headers: { 
         'Content-Type': 'text/plain; charset=utf-8',
@@ -114,7 +69,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('API Proxy Error:', error);
     return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
