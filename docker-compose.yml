@@ -3,46 +3,59 @@ version: '3.8'
 services:
   # 1. The Next.js Frontend
   frontend:
-    build: 
+    build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: cyber_frontend
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: "https://zuswmcqwudybxbpxcoaw.supabase.co"
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_tE5-ptTYbqH2Q9s87JvQiQ_P8HNltYq"
+    container_name: cyber_core_frontend
     restart: always
     ports:
-      # Binds strictly to localhost:3000 on the host machine
+      # SECURED: Binds strictly to localhost
       - "127.0.0.1:3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=https://cyber-studio.duckdns.org/api 
-    env_file:
-      - ./frontend/.env
+      # UPDATED: Routes through your secure Caddy domain
+      - NEXT_PUBLIC_API_URL=https://cyber-studio.duckdns.org/api
+    depends_on:
+      - backend
     networks:
       - cyber_net
 
   # 2. The FastAPI Backend
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: cyber_backend
+    container_name: cyber_core_backend
     restart: always
     ports:
-      # Binds strictly to localhost:8000 on the host machine
+      # SECURED: Binds strictly to localhost
       - "127.0.0.1:8000:8000"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_BASE_URL=http://ollama:11434
     env_file:
       - ./backend/.env
+    depends_on:
+      - qdrant
+      - ollama
     networks:
       - cyber_net
 
   # 3. Qdrant Vector Database
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: cyber_qdrant
+    container_name: cyber_core_qdrant
     restart: always
     ports:
-      # Internal database, only accessible locally
+      # SECURED: Binds strictly to localhost
       - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
     volumes:
-      - qdrant_data:/qdrant/storage
+      - ./qdrant_storage:/qdrant/storage:z
     networks:
       - cyber_net
 
@@ -52,16 +65,12 @@ services:
     container_name: cyber_core_ollama
     restart: always
     ports:
-      # SECURED: Bound strictly to localhost so the outside internet cannot access your models
+      # SECURED: Binds strictly to localhost
       - "127.0.0.1:11434:11434"
     volumes:
-      # Persistent storage for downloaded LLM weights
       - ./ollama_storage:/root/.ollama
     networks:
       - cyber_net
-
-
-
 
   # 5. Ollama Model Puller (Auto-Initialization)
   ollama-pull:
@@ -76,9 +85,6 @@ services:
     command: -c "sleep 5 && ollama pull nomic-embed-text && ollama pull qwen2.5-coder:1.5b"
     environment:
       - OLLAMA_HOST=ollama:11434
-
-volumes:
-  qdrant_data:
 
 networks:
   cyber_net:
