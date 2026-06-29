@@ -60,6 +60,9 @@ services:
     networks:
       - cyber_net
 
+
+
+
   # 5. Ollama Model Puller (Auto-Initialization)
   ollama-pull:
     image: ollama/ollama:latest
