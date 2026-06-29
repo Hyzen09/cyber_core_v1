@@ -1,0 +1,22 @@
+name: Deploy Cyber Core to EC2
+
+on:
+  push:
+    branches:
+      - main # This triggers the workflow when you push to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute Remote SSH Commands
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd YOUR_REPO_NAME
+            git pull origin main
+            docker compose down
+            docker compose up -d --build
