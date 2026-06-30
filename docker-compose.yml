@@ -73,18 +73,26 @@ services:
       - cyber_net
 
   # 5. Ollama Model Puller (Auto-Initialization)
-  ollama-pull:
-    image: ollama/ollama:latest
-    container_name: cyber_ollama_pull
+  ollama-puller:
+    image: curlimages/curl:latest
+    container_name: cyber_core_ollama_puller
+    restart: "no"
     depends_on:
       - ollama
     networks:
       - cyber_net
-    entrypoint: /bin/sh
-    # Waits 5 seconds for the main server to start, then downloads the models
-    command: -c "sleep 5 && ollama pull nomic-embed-text && ollama pull qwen2.5-coder:1.5b"
-    environment:
-      - OLLAMA_HOST=ollama:11434
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Waiting for Ollama to be ready...';
+      while ! curl -s http://ollama:11434/api/tags > /dev/null; do
+        sleep 5;
+      done;
+      echo 'Pulling nomic-embed-text...';
+      curl -s -X POST http://ollama:11434/api/pull -d '{\"name\": \"nomic-embed-text\"}';
+      echo 'Pulling qwen2.5-coder:1.5b...';
+      curl -s -X POST http://ollama:11434/api/pull -d '{\"name\": \"qwen2.5-coder:1.5b\"}';
+      echo 'Models pulled successfully!';
+      "
 
 networks:
   cyber_net:
