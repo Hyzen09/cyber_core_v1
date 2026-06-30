@@ -36,9 +36,9 @@ services:
       # SECURED: Binds strictly to localhost
       - "127.0.0.1:8000:8000"
     environment:
-      - QDRANT_HOST=qdrant
+      - QDRANT_HOST=cyber_core_qdrant
       - QDRANT_PORT=6333
-      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_URL=http://cyber_core_qdrant:6333
     env_file:
       - ./backend/.env
     depends_on:

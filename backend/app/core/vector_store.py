@@ -2,6 +2,7 @@
 from qdrant_client import QdrantClient, models
 from app.config import QDRANT_URL, QDRANT_API_KEY
 
+print(f"Initializing QdrantClient with URL: {QDRANT_URL}")
 qdrant = QdrantClient(
     url=QDRANT_URL, 
     api_key=QDRANT_API_KEY if QDRANT_API_KEY else None,
