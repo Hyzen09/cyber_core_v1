@@ -10,6 +10,6 @@ def init_collections():
         if not qdrant.collection_exists(name):
             qdrant.create_collection(
                 collection_name=name,
-                vectors_config=models.VectorParams(size=768, distance=models.Distance.COSINE)
+                vectors_config=models.VectorParams(size=3072, distance=models.Distance.COSINE)
             )
             print(f"Created Qdrant Collection: {name}")

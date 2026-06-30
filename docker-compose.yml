@@ -38,12 +38,10 @@ services:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - QDRANT_URL=http://qdrant:6333
-      - OLLAMA_BASE_URL=http://ollama:11434
     env_file:
       - ./backend/.env
     depends_on:
       - qdrant
-      - ollama
     networks:
       - cyber_net
 
@@ -60,41 +58,6 @@ services:
       - ./qdrant_storage:/qdrant/storage:z
     networks:
       - cyber_net
-
-  # 4. Ollama LLM Server
-  ollama:
-    image: ollama/ollama:latest
-    container_name: cyber_core_ollama
-    restart: always
-    ports:
-      # SECURED: Binds strictly to localhost
-      - "127.0.0.1:11434:11434"
-    volumes:
-      - ./ollama_storage:/root/.ollama
-    networks:
-      - cyber_net
-
-  # 5. Ollama Model Puller (Auto-Initialization)
-  ollama-puller:
-    image: curlimages/curl:latest
-    container_name: cyber_core_ollama_puller
-    restart: "no"
-    depends_on:
-      - ollama
-    networks:
-      - cyber_net
-    entrypoint: >
-      /bin/sh -c "
-      echo 'Waiting for Ollama to be ready...';
-      while ! curl -s http://ollama:11434/api/tags > /dev/null; do
-        sleep 5;
-      done;
-      echo 'Pulling nomic-embed-text...';
-      curl -s -X POST http://ollama:11434/api/pull -d '{\"name\": \"nomic-embed-text\"}';
-      echo 'Pulling qwen2.5-coder:1.5b...';
-      curl -s -X POST http://ollama:11434/api/pull -d '{\"name\": \"qwen2.5-coder:1.5b\"}';
-      echo 'Models pulled successfully!';
-      "
 
 networks:
   cyber_net:

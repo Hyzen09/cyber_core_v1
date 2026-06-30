@@ -9,7 +9,6 @@ QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = os.getenv("QDRANT_PORT", "6333")
 QDRANT_URL = os.getenv("QDRANT_URL", f"http://{QDRANT_HOST}:{QDRANT_PORT}")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:8000")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip('"')
 

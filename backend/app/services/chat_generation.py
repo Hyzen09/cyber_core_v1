@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from app.models import ChatRequest
 from app.core.database import supabase
 from app.core.vector_store import qdrant, models
-from app.services.model_config import chat_model, gemini_chat_model, embeddings_model
+from app.services.model_config import chat_model, embeddings_model
 
 async def generate_chat_response(request: ChatRequest):
     history_response = supabase.table("messages") \
@@ -16,10 +16,6 @@ async def generate_chat_response(request: ChatRequest):
     chat_history = history_response.data
     formatted_history = "\n".join([f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history]) if chat_history else "No previous conversation."
 
-    active_model = chat_model
-    if getattr(request, "modelType", "local") == "gemini" and gemini_chat_model:
-        active_model = gemini_chat_model
-
     standalone_query = request.message
     if chat_history:
         reformulation_prompt = f"""Given the following conversation history and the user's new question, rephrase the question to be a standalone query that contains all necessary context. Do not answer the question, just reformulate it.
@@ -30,7 +26,7 @@ async def generate_chat_response(request: ChatRequest):
         New Question: {request.message}
         Standalone Question:"""
         
-        reformulation_response = await active_model.ainvoke(reformulation_prompt)
+        reformulation_response = await chat_model.ainvoke(reformulation_prompt)
         standalone_query = reformulation_response.content.strip()
 
     agent_prompt = None
@@ -103,7 +99,7 @@ Retrieved Document Context:
                 
     messages.append(HumanMessage(content=request.message))
 
-    final_response = await active_model.ainvoke(messages)
+    final_response = await chat_model.ainvoke(messages)
     raw_content = final_response.content
 
     ai_answer = raw_content

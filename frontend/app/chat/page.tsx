@@ -61,7 +61,6 @@ export default function ChatPage() {
 
   // App & User State
   const [userName, setUserName] = useState<string>('Loading...');
-  const [selectedModel, setSelectedModel] = useState<'local' | 'gemini'>('local');
 
   // Chat State
   const [chats, setChats] = useState<ChatSession[]>([]);
@@ -340,7 +339,7 @@ export default function ChatPage() {
           userId: user?.id || 'anonymous',
           session_id: activeChatId,
           messages: newMessages,             
-          modelType: selectedModel,          
+          modelType: 'gemini',          
           filename: activeFilename,
           agent_id: currentAgentId
         }),
@@ -512,14 +511,7 @@ export default function ChatPage() {
             )}
             <div className="flex items-center space-x-2 bg-[#1d1f29] px-3 py-1 rounded-full border border-[#434656]">
               <span className="text-xs font-bold tracking-widest text-[#c3c5d9]">CORE:</span>
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value as 'local' | 'gemini')}
-                className="bg-transparent text-sm text-[#e1e1ef] font-medium focus:outline-none cursor-pointer"
-              >
-                <option value="local">LOCAL_QWEN</option>
-                <option value="gemini">CLOUD_GEMINI</option>
-              </select>
+              <span className="text-sm text-[#e1e1ef] font-medium">CLOUD_GEMINI</span>
             </div>
           </div>
         </header>
@@ -566,7 +558,11 @@ export default function ChatPage() {
 
           {/* Messages */}
           <div className="space-y-6 max-w-4xl mx-auto w-full">
-            {messages.map((msg, idx) => (
+            {messages.map((msg, idx) => {
+              if (isLoading && msg.role === 'assistant' && msg.content === '' && idx === messages.length - 1) {
+                return null;
+              }
+              return (
               <div key={msg.id || idx} className={`flex items-start space-x-3 w-full ${msg.role === 'user' ? 'justify-end' : ''}`}>
 
                 {/* Avatar for Assistant */}
@@ -614,7 +610,7 @@ export default function ChatPage() {
                   </div>
                 )}
               </div>
-            ))}
+            )})}
 
             {/* Loading Indicator */}
             {isLoading && messages[messages.length - 1]?.content === '' && (
