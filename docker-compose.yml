@@ -15,6 +15,8 @@ services:
       # SECURED: Binds strictly to localhost
       - "127.0.0.1:3000:3000"
     environment:
+      # SECURED: Internal docker network to connect to backend
+      - INTERNAL_API_URL=http://backend:8000
       # UPDATED: Routes through your secure Caddy domain
       - NEXT_PUBLIC_API_URL=https://cyber-studio.duckdns.org/api
     depends_on:

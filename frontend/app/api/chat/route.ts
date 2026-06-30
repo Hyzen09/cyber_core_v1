@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const lastMessage = messages[messages.length - 1];
 
     // Forward the request to the Python backend which handles Qdrant RAG, Agents, and LLM (Gemini/Ollama)
-    const backendUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/chat`;
+    const backendUrl = `${process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/chat`;
     
     const pythonResponse = await fetch(backendUrl, {
       method: 'POST',
