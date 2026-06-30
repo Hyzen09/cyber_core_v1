@@ -42,8 +42,7 @@ services:
     env_file:
       - ./backend/.env
     depends_on:
-      qdrant:
-        condition: service_healthy
+      - qdrant
     networks:
       - cyber_net
 
@@ -60,11 +59,7 @@ services:
       - ./qdrant_storage:/qdrant/storage:z
     networks:
       - cyber_net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/readyz"] # <--- Checks if Qdrant is awake
-      interval: 5s
-      timeout: 3s
-      retries: 5
+
 
 networks:
   cyber_net:
