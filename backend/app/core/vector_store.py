@@ -2,7 +2,11 @@
 from qdrant_client import QdrantClient, models
 from app.config import QDRANT_URL, QDRANT_API_KEY
 
-qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+qdrant = QdrantClient(
+    url=QDRANT_URL, 
+    api_key=QDRANT_API_KEY if QDRANT_API_KEY else None,
+    check_compatibility=False
+)
 
 def init_collections():
     collection_names = ["document_chunks", "document_summaries"]
