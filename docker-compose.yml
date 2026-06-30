@@ -18,7 +18,7 @@ services:
       # SECURED: Internal docker network to connect to backend
       - INTERNAL_API_URL=http://backend:8000
       # UPDATED: Routes through your secure Caddy domain
-      - NEXT_PUBLIC_API_URL=https://cyber-studio.duckdns.org/api
+      - NEXT_PUBLIC_API_URL=https://cyber-studio.duckdns.org
     depends_on:
       - backend
     networks:

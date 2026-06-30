@@ -1,10 +1,6 @@
 cyber-studio.duckdns.org {
     # 1. Heavy-Lifting Routes -> Python Backend (FastAPI)
-    handle /api/upload-pdf* {
-        reverse_proxy 127.0.0.1:8000
-    }
-
-    handle /api/agents* {
+    handle /api/engine/* {
         reverse_proxy 127.0.0.1:8000
     }
 

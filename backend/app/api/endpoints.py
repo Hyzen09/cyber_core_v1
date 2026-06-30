@@ -7,7 +7,7 @@ import traceback
 
 router = APIRouter()
 
-@router.post("/api/upload-pdf")
+@router.post("/api/engine/upload-pdf")
 async def upload_pdf_route(
     file: UploadFile = File(...),
     user_id: str = Form(...),
@@ -19,7 +19,7 @@ async def upload_pdf_route(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Failed to process and embed PDF")
 
-@router.post("/api/chat")
+@router.post("/api/engine/chat")
 async def chat_route(request: ChatRequest):
     try:
         return await generate_chat_response(request)
@@ -27,7 +27,7 @@ async def chat_route(request: ChatRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
 
-@router.post("/api/agents")
+@router.post("/api/engine/agents")
 async def create_agent_route(
     name: str = Form(...),
     description: str = Form(...),

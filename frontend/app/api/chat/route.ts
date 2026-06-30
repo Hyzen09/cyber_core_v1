@@ -19,8 +19,16 @@ export async function POST(req: NextRequest) {
     const lastMessage = messages[messages.length - 1];
 
     // Forward the request to the Python backend which handles Qdrant RAG, Agents, and LLM (Gemini)
-    const backendUrl = `${process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/chat`;
+    const isDev = process.env.NODE_ENV === 'development';
+    const internalApiUrl = process.env.INTERNAL_API_URL || (isDev ? 'http://127.0.0.1:8000' : 'http://backend:8000');
+    const backendUrl = `${internalApiUrl}/api/engine/chat`;
     
+    // Safety check to prevent routing loops if internalApiUrl is misconfigured
+    if (backendUrl.includes(req.nextUrl.host)) {
+      console.error("Routing loop detected! backendUrl resolves back to the frontend host.");
+      return new Response(JSON.stringify({ error: "Configuration Error: API routing loop detected. Check INTERNAL_API_URL." }), { status: 500 });
+    }
+
     const pythonResponse = await fetch(backendUrl, {
       method: 'POST',
       headers: {

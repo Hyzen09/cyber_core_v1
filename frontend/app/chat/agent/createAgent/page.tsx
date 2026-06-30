@@ -70,8 +70,7 @@ export default function CreateAgentPage() {
       formData.append('is_public', isPublic.toString());
       formData.append('file', file);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const response = await fetch(`${apiUrl}/api/agents`, {
+      const response = await fetch('/api/engine/agents', {
         method: 'POST',
         body: formData,
       });
