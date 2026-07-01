@@ -11,9 +11,7 @@ services:
         NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_tE5-ptTYbqH2Q9s87JvQiQ_P8HNltYq"
     container_name: cyber_core_frontend
     restart: always
-    ports:
-      # UPDATED: Allows external traffic via load balancer or direct IP
-      - "3000:3000"
+    # Removed exposed ports; Caddy routes traffic internally
     environment:
       # SECURED: Internal docker network to connect to backend
       - INTERNAL_API_URL=http://backend:8000
@@ -32,9 +30,7 @@ services:
       dockerfile: Dockerfile
     container_name: cyber_core_backend
     restart: always
-    ports:
-      # UPDATED: Allows external traffic via load balancer or direct IP
-      - "8000:8000"
+    # Removed exposed ports; Caddy routes traffic internally
     environment:
       - QDRANT_HOST=cyber_core_qdrant
       - QDRANT_PORT=6333
@@ -53,14 +49,36 @@ services:
     restart: always
     ports:
       # UPDATED: Allows external traffic via load balancer or direct IP
-      - "6333:6333"
-      - "6334:6334"
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
     volumes:
       - ./qdrant_storage:/qdrant/storage:z
     networks:
       - cyber_net
 
+  # 4. Caddy Reverse Proxy
+  caddy:
+    image: caddy:latest
+    container_name: cyber_core_caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - cyber_net
+    depends_on:
+      - frontend
+      - backend
+
 
 networks:
   cyber_net:
     driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

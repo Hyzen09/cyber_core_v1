@@ -351,20 +351,17 @@ export default function ChatPage() {
         throw new Error(`API returned status ${response.status}: ${errorDetail}`);
       }
 
-      // Read the response stream chunk-by-chunk for the typewriter effect
-      if (!response.body) throw new Error("No response body returned from core.");
-      
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
+      const data = await response.json();
+      const answer = data.answer || "I'm sorry, I couldn't generate a response.";
+
+      // Fake the streaming effect so the UI types it out smoothly
+      const chunkSize = 15;
       let fullAssistantResponse = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      
+      for (let i = 0; i < answer.length; i += chunkSize) {
+        const chunk = answer.slice(i, i + chunkSize);
+        fullAssistantResponse += chunk;
         
-        const chunkText = decoder.decode(value, { stream: true });
-        fullAssistantResponse += chunkText;
-
         setMessages((prev) => 
           prev.map((msg) => 
             msg.id === assistantMessageId 
@@ -372,6 +369,9 @@ export default function ChatPage() {
               : msg
           )
         );
+        
+        // Delay to simulate typing speed
+        await new Promise(r => setTimeout(r, 15));
       }
 
       // Clear suggestions since the streaming backend doesn't output a JSON array for them
