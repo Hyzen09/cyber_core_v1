@@ -77,12 +77,12 @@ QDRANT_API_KEY=""
 ```
 
 ### 3. Run with Docker Compose
-The entire stack (Frontend, Backend, and Qdrant) is fully containerized. To build and start the cluster:
+The entire stack (Frontend, Backend, Qdrant, and Caddy) is fully containerized. To build and start the cluster:
 ```bash
 docker compose up -d --build
 ```
 
-The application will now be available at `http://localhost:3000`, and the API runs securely at `http://localhost:8000`.
+The application will now be securely available at `https://cyber-studio.duckdns.org` (or whatever domain is configured in the `Caddyfile`). The internal API routes are completely protected and hidden from direct external access.
 
 ---
 
@@ -93,7 +93,6 @@ cyber_core_v1/
 ├── frontend/                    # Next.js Frontend Application
 │   ├── app/                     # Next.js App Router (Pages & Layouts)
 │   │   ├── actions/             # Server Actions for DB operations
-│   │   ├── api/                 # Next.js API Routes
 │   │   ├── chat/                # Chat Interface UI
 │   │   ├── components/          # Reusable React Components
 │   │   ├── login/               # Authentication UI

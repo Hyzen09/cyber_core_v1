@@ -11,11 +11,11 @@ services:
         NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_tE5-ptTYbqH2Q9s87JvQiQ_P8HNltYq"
     container_name: cyber_core_frontend
     restart: always
-    # Removed exposed ports; Caddy routes traffic internally
+    # Removed exposed ports; Nginx routes traffic internally
     environment:
       # SECURED: Internal docker network to connect to backend
       - INTERNAL_API_URL=http://backend:8000
-      # UPDATED: Routes through your secure Caddy domain
+      # UPDATED: Routes through your secure Nginx domain
       - NEXT_PUBLIC_API_URL=https://cyber-studio.duckdns.org
     depends_on:
       - backend
@@ -30,7 +30,7 @@ services:
       dockerfile: Dockerfile
     container_name: cyber_core_backend
     restart: always
-    # Removed exposed ports; Caddy routes traffic internally
+    # Removed exposed ports; Nginx routes traffic internally
     environment:
       - QDRANT_HOST=cyber_core_qdrant
       - QDRANT_PORT=6333
@@ -56,23 +56,32 @@ services:
     networks:
       - cyber_net
 
-  # 4. Caddy Reverse Proxy
-  caddy:
-    image: caddy:latest
-    container_name: cyber_core_caddy
+  # 4. Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: cyber_core_nginx
     restart: always
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
     networks:
       - cyber_net
     depends_on:
       - frontend
       - backend
+
+  # 5. Certbot (Let's Encrypt)
+  certbot:
+    image: certbot/certbot
+    container_name: cyber_core_certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 
 networks:
@@ -80,5 +89,5 @@ networks:
     driver: bridge
 
 volumes:
-  caddy_data:
-  caddy_config:
+  certbot_conf:
+  certbot_www:

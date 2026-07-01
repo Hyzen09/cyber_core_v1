@@ -27,7 +27,7 @@ It also includes a **module-wise mind plan** for extending the application with 
   * **Supabase**: Utilized for standard relational data, including episodic chat history and user authentication.
 
 ### Orchestration (`docker-compose.yml`)
-* **Docker**: The entire tech stack is containerized. A root `docker-compose.yml` orchestrates the isolated Python Backend, Next.js Frontend, and Qdrant Vector database, routing networking through an internal bridge (`cyber_net`) and exposing necessary ports natively.
+* **Docker & Caddy**: The entire tech stack is containerized. A root `docker-compose.yml` orchestrates the isolated Python Backend, Next.js Frontend, Qdrant Vector database, and a native **Caddy Reverse Proxy**. Networking is routed through an internal bridge (`cyber_net`). Frontend (3000) and Backend (8000) ports are safely hidden inside the Docker network, while Caddy handles all public ingress securely on ports 80 and 443.
 
 ---
 
@@ -73,21 +73,21 @@ It also includes a **module-wise mind plan** for extending the application with 
 
 This section maps out the network routes, detailing which endpoint hits which service, and highlights any hardcoded IPs or domains that drive the application.
 
-### A. Proxied via Caddy (Entry Point: `http://13.203.92.73`)
-Caddy serves as the main reverse proxy. The hardcoded IP acting as the public entry point in `Caddyfile` and `docker-compose.yml` (`NEXT_PUBLIC_SITE_URL`) is **`13.203.92.73`**.
+### A. Proxied via Caddy (Entry Point: `cyber-studio.duckdns.org`)
+Caddy serves as the main reverse proxy containerized within Docker. It acts as the single public entry point for all traffic on ports 80 and 443, handling SSL automatically.
 
 *   **`POST /api/upload-pdf`**
-    *   **Routed to:** Python Backend (`backend:8000/api/upload-pdf`)
+    *   **Routed to:** Python Backend (`cyber_core_backend:8000`)
     *   **Function:** Handles PDF uploads, runs OCR/text extraction, generates summaries, and stores document chunk embeddings in Qdrant.
 *   **`POST /api/agents`**
-    *   **Routed to:** Python Backend (`backend:8000/api/agents`)
+    *   **Routed to:** Python Backend (`cyber_core_backend:8000`)
     *   **Function:** Creates a custom AI agent configuration in Supabase and processes its associated knowledge base file.
 *   **`POST /api/chat`**
-    *   **Routed to:** Next.js Frontend API (`frontend:3000/api/chat`) handled by `app/api/chat/route.ts`
-    *   **Function:** Next.js API route that interacts with the LLMs (Ollama/Gemini) using LangChain. It uses Server-Sent Events to stream responses directly to the client. *(Note: There is also a `/api/chat` route defined in the Python backend, but Caddy routes this traffic to the frontend to enable real-time UI streaming.)*
+    *   **Routed to:** Python Backend (`cyber_core_backend:8000`)
+    *   **Function:** Interacts directly with the LLMs (Ollama/Gemini) using LangChain. The response streams back chunk-by-chunk through Caddy to the Next.js client UI.
 *   **All other routes (`/*`)**
-    *   **Routed to:** Next.js Frontend (`frontend:3000`)
-    *   **Function:** Serves the UI pages (e.g., `/`, `/chat`, `/login`).
+    *   **Routed to:** Next.js Frontend (`cyber_core_frontend:3000`)
+    *   **Function:** Serves the UI pages (e.g., `/`, `/chat`, `/login`). Next.js Client Components make fetch requests to `/api/*` which are seamlessly caught by Caddy and forwarded to the backend.
 
 ### B. Internal & External Service URLs
 *   **Supabase Database & Auth:**
@@ -104,9 +104,9 @@ Caddy serves as the main reverse proxy. The hardcoded IP acting as the public en
 
 To advance your skills as a Next.js developer, here is a structured, module-wise roadmap for the new features and concepts we will introduce to this application next:
 
-### Module 1: Next.js Route Handlers (API Proxying)
-* **New Concept**: Route Handlers (`app/api/.../route.ts`).
-* **The Plan**: Currently, the frontend talks directly to the FastAPI backend (`http://localhost:8000`). In a production setting, this exposes the backend URL and creates CORS issues. We will create API Routes in Next.js (e.g., `app/api/chat/route.ts`) to intercept the frontend requests and securely forward them to FastAPI from the Next.js server.
+### Module 1: Next.js Route Handlers vs Native Reverse Proxy
+* **Concept Learned**: API Proxying and Architecture design.
+* **The Result**: We initially built Next.js Route Handlers (`app/api/.../route.ts`) to act as a middleman proxy so the frontend could communicate with the backend securely. However, we refactored this out to favor a native **Caddy Reverse Proxy**. This is far more performant because the browser hits Caddy, which routes `/api/*` directly to Python without Next.js having to process and re-forward the request payload.
 
 ### Module 2: Streaming Responses & React Suspense
 * **New Concept**: Server-Sent Events (SSE) and Streaming UI.
