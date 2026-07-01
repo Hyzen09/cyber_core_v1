@@ -27,7 +27,7 @@ It also includes a **module-wise mind plan** for extending the application with 
   * **Supabase**: Utilized for standard relational data, including episodic chat history and user authentication.
 
 ### Orchestration (`docker-compose.yml`)
-* **Docker & Caddy**: The entire tech stack is containerized. A root `docker-compose.yml` orchestrates the isolated Python Backend, Next.js Frontend, Qdrant Vector database, and a native **Caddy Reverse Proxy**. Networking is routed through an internal bridge (`cyber_net`). Frontend (3000) and Backend (8000) ports are safely hidden inside the Docker network, while Caddy handles all public ingress securely on ports 80 and 443.
+* **Docker & Nginx**: The entire tech stack is containerized. A root `docker-compose.yml` orchestrates the isolated Python Backend, Next.js Frontend, Qdrant Vector database, and a native **Nginx Reverse Proxy**. Networking is routed through an internal bridge (`cyber_net`). Frontend (3000) and Backend (8000) ports are safely hidden inside the Docker network, while Nginx handles all public ingress securely on ports 80 and 443 with SSL managed automatically by a sidecar **Certbot** container.
 
 ---
 
@@ -73,8 +73,8 @@ It also includes a **module-wise mind plan** for extending the application with 
 
 This section maps out the network routes, detailing which endpoint hits which service, and highlights any hardcoded IPs or domains that drive the application.
 
-### A. Proxied via Caddy (Entry Point: `cyber-studio.duckdns.org`)
-Caddy serves as the main reverse proxy containerized within Docker. It acts as the single public entry point for all traffic on ports 80 and 443, handling SSL automatically.
+### A. Proxied via Nginx (Entry Point: `cyber-studio.duckdns.org`)
+Nginx serves as the main reverse proxy containerized within Docker. It acts as the single public entry point for all traffic on ports 80 and 443. SSL is automatically provisioned and renewed via a companion **Certbot** container.
 
 *   **`POST /api/upload-pdf`**
     *   **Routed to:** Python Backend (`cyber_core_backend:8000`)
@@ -84,10 +84,10 @@ Caddy serves as the main reverse proxy containerized within Docker. It acts as t
     *   **Function:** Creates a custom AI agent configuration in Supabase and processes its associated knowledge base file.
 *   **`POST /api/chat`**
     *   **Routed to:** Python Backend (`cyber_core_backend:8000`)
-    *   **Function:** Interacts directly with the LLMs (Ollama/Gemini) using LangChain. The response streams back chunk-by-chunk through Caddy to the Next.js client UI.
+    *   **Function:** Interacts directly with the LLMs (Ollama/Gemini) using LangChain. The response streams back chunk-by-chunk through Nginx to the Next.js client UI. (Nginx uses `proxy_buffering off;` to allow real-time streaming).
 *   **All other routes (`/*`)**
     *   **Routed to:** Next.js Frontend (`cyber_core_frontend:3000`)
-    *   **Function:** Serves the UI pages (e.g., `/`, `/chat`, `/login`). Next.js Client Components make fetch requests to `/api/*` which are seamlessly caught by Caddy and forwarded to the backend.
+    *   **Function:** Serves the UI pages (e.g., `/`, `/chat`, `/login`). Next.js Client Components make fetch requests to `/api/*` which are seamlessly caught by Nginx and forwarded to the backend.
 
 ### B. Internal & External Service URLs
 *   **Supabase Database & Auth:**
@@ -106,7 +106,7 @@ To advance your skills as a Next.js developer, here is a structured, module-wise
 
 ### Module 1: Next.js Route Handlers vs Native Reverse Proxy
 * **Concept Learned**: API Proxying and Architecture design.
-* **The Result**: We initially built Next.js Route Handlers (`app/api/.../route.ts`) to act as a middleman proxy so the frontend could communicate with the backend securely. However, we refactored this out to favor a native **Caddy Reverse Proxy**. This is far more performant because the browser hits Caddy, which routes `/api/*` directly to Python without Next.js having to process and re-forward the request payload.
+* **The Result**: We initially built Next.js Route Handlers (`app/api/.../route.ts`) to act as a middleman proxy so the frontend could communicate with the backend securely. However, we refactored this out to favor a native **Nginx Reverse Proxy**. This is far more performant because the browser hits Nginx, which routes `/api/*` directly to Python without Next.js having to process and re-forward the request payload.
 
 ### Module 2: Streaming Responses & React Suspense
 * **New Concept**: Server-Sent Events (SSE) and Streaming UI.

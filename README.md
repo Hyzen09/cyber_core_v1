@@ -77,12 +77,12 @@ QDRANT_API_KEY=""
 ```
 
 ### 3. Run with Docker Compose
-The entire stack (Frontend, Backend, Qdrant, and Caddy) is fully containerized. To build and start the cluster:
+The entire stack (Frontend, Backend, Qdrant, Nginx, and Certbot) is fully containerized. To build and start the cluster:
 ```bash
 docker compose up -d --build
 ```
 
-The application will now be securely available at `https://cyber-studio.duckdns.org` (or whatever domain is configured in the `Caddyfile`). The internal API routes are completely protected and hidden from direct external access.
+The application will now be securely available at `https://cyber-studio.duckdns.org`. The internal API routes are completely protected and hidden from direct external access.
 
 ---
 

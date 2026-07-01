@@ -3,7 +3,7 @@ name: Deploy Cyber Core to EC2
 on:
   push:
     branches:
-      - main # This triggers the workflow when you push to the main branch
+      - main 
 
 jobs:
   deploy:
@@ -17,8 +17,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             cd cyber_core_v1
-            git fetch --all
-            git reset --hard origin/main
-            docker compose down
-            docker compose up -d --build
-            sudo systemctl reload caddy || true
+            
+            docker compose up -d --build frontend backend
+            
+            docker image prune -f

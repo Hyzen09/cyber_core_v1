@@ -336,10 +336,9 @@ export default function ChatPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user?.id || 'anonymous',
+          user_id: user?.id || 'anonymous',
           session_id: activeChatId,
-          messages: newMessages,             
-          modelType: 'gemini',          
+          message: messageText.trim(),             
           filename: activeFilename,
           agent_id: currentAgentId
         }),
