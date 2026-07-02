@@ -19,6 +19,6 @@ jobs:
           script: |
             cd cyber_core_v1
             
-            docker compose up -d --build 
+            docker compose up -d --build frontend backend
             
             docker image prune -f
